@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# wasm-bindgen ships a .wasm asset; serve it with the right MIME so the
+# browser instantiates it as a module rather than choking on octet-stream.
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
