@@ -1,0 +1,815 @@
+<!--
+  sdocx inspector — a client-side viewer for Samsung Notes files.
+  Zip container browsing + media + metadata works with JSZip alone.
+  Handwriting rendering loads the reverse-engineered @twango/sdocx WASM parser at runtime.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sdocx inspector</title>
+<style>
+  :root{
+    --ink:#10151f;          /* deep ink navy, the workbench */
+    --panel:#171d29;
+    --panel-2:#1d2432;
+    --line:#28324a;
+    --line-soft:#212a3d;
+    --text:#e2e7f0;
+    --muted:#8793a8;
+    --amber:#e0a145;        /* warm ink accent */
+    --cyan:#5aa9c9;         /* cool secondary */
+    --paper:#f7f5ef;        /* the note surface */
+    --danger:#d47a6a;
+    --ok:#77b58a;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:var(--sans); font-size:14px; line-height:1.5;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  a{color:var(--cyan)}
+  button{font-family:inherit}
+
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex; align-items:center; gap:16px;
+    padding:0 16px; height:52px; flex:0 0 auto;
+    background:linear-gradient(180deg,#141a26,#10151f);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; user-select:none}
+  .brand b{font-weight:650; letter-spacing:-.01em; font-size:15px}
+  .brand .glyph{
+    font-family:var(--mono); color:var(--amber); font-size:15px;
+    border:1px solid var(--line); border-radius:6px; padding:2px 7px; background:#131926;
+  }
+  .brand small{color:var(--muted); font-size:12px}
+  .spacer{flex:1}
+  .chip{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+    border:1px solid var(--line); border-radius:20px; padding:4px 11px; background:#131926;
+    cursor:default;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto}
+  .chip.ready .dot{background:var(--ok); box-shadow:0 0 0 3px rgba(119,181,138,.18)}
+  .chip.off .dot{background:var(--danger)}
+  .chip.busy .dot{background:var(--amber); animation:pulse 1s ease-in-out infinite}
+  .chip.retry{cursor:pointer}
+  .chip.retry:hover{border-color:var(--amber); color:var(--text)}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+    background:var(--amber); color:#20160a; border:none; font-weight:600;
+    border-radius:8px; padding:8px 14px; font-size:13px;
+  }
+  .btn:hover{filter:brightness(1.06)}
+  .btn.ghost{background:transparent; color:var(--text); border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--muted)}
+
+  /* ---- workspace ---- */
+  .work{flex:1; display:flex; min-height:0}
+  .side{
+    width:264px; flex:0 0 auto; border-right:1px solid var(--line);
+    background:var(--panel); display:flex; flex-direction:column; min-height:0;
+  }
+  .side h3{
+    margin:0; padding:12px 14px 8px; font-size:11px; letter-spacing:.04em;
+    color:var(--muted); font-weight:600;
+  }
+  .notes{overflow:auto; padding:0 8px 12px}
+  .note-item{
+    padding:9px 10px; border-radius:8px; cursor:pointer; margin-bottom:3px;
+    border:1px solid transparent;
+  }
+  .note-item:hover{background:var(--panel-2)}
+  .note-item.active{background:var(--panel-2); border-color:var(--line)}
+  .note-item .n{font-size:13px; font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .note-item .m{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:2px}
+  .side .empty-hint{padding:10px 14px; color:var(--muted); font-size:12.5px}
+
+  .main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--ink)}
+  .tabs{
+    display:flex; gap:2px; padding:0 12px; height:44px; align-items:flex-end;
+    border-bottom:1px solid var(--line); flex:0 0 auto; background:var(--panel);
+  }
+  .tab{
+    appearance:none; background:none; border:none; color:var(--muted);
+    padding:9px 13px; font-size:13px; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-1px; display:flex; align-items:center; gap:7px;
+  }
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--text); border-bottom-color:var(--amber)}
+  .tab .count{
+    font-family:var(--mono); font-size:10.5px; color:var(--muted);
+    background:#0d121c; border:1px solid var(--line); border-radius:10px; padding:0 6px;
+  }
+  .tab.active .count{color:var(--amber); border-color:#3a3320}
+  .toolrow{
+    display:flex; align-items:center; gap:12px; padding:8px 14px; flex:0 0 auto;
+    border-bottom:1px solid var(--line-soft); color:var(--muted); font-size:12px; min-height:0;
+  }
+  .toolrow.hidden{display:none}
+  .zoom{display:flex; align-items:center; gap:6px}
+  .zoom button{
+    width:26px; height:26px; border-radius:6px; border:1px solid var(--line);
+    background:#131926; color:var(--text); cursor:pointer; font-size:15px; line-height:1;
+  }
+  .zoom button:hover{border-color:var(--muted)}
+  .zoom span{font-family:var(--mono); min-width:44px; text-align:center}
+
+  .view{flex:1; overflow:auto; min-height:0; position:relative}
+
+  /* ---- pages ---- */
+  .pages{padding:22px; display:flex; flex-direction:column; align-items:center; gap:24px}
+  .page-wrap{width:100%; max-width:900px}
+  .page-label{
+    font-family:var(--mono); font-size:11px; color:var(--muted); margin-bottom:6px;
+    display:flex; justify-content:space-between;
+  }
+  canvas.page{
+    display:block; width:100%; border-radius:4px;
+    box-shadow:0 1px 0 rgba(255,255,255,.04), 0 18px 40px -20px rgba(0,0,0,.7);
+    border:1px solid var(--line);
+  }
+
+  /* ---- media ---- */
+  .media-grid{padding:22px; display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px}
+  .media-card{border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--panel)}
+  .media-card img{display:block; width:100%; height:150px; object-fit:contain; background:#0c1119}
+  .media-card .cap{padding:8px 10px; font-family:var(--mono); font-size:11px; color:var(--muted)}
+  .media-card .cap b{color:var(--text); font-weight:550; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .media-card audio{width:100%}
+
+  /* ---- structure ---- */
+  .tree{padding:14px 18px; font-family:var(--mono); font-size:12.5px}
+  .tree table{width:100%; border-collapse:collapse}
+  .tree th{
+    text-align:left; color:var(--muted); font-weight:500; padding:6px 10px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--ink);
+  }
+  .tree td{padding:5px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+  .tree tr.click{cursor:pointer}
+  .tree tr.click:hover td{background:var(--panel-2)}
+  .tree td.sz{color:var(--muted); text-align:right; white-space:nowrap}
+  .tag{font-size:10px; padding:1px 6px; border-radius:4px; border:1px solid var(--line); color:var(--muted)}
+  .tag.ink{color:var(--amber); border-color:#3a3320}
+  .tag.media{color:var(--cyan); border-color:#274150}
+  .tag.meta{color:var(--ok); border-color:#294436}
+
+  /* ---- raw / inspector panels ---- */
+  pre.raw{
+    margin:0; padding:18px; font-family:var(--mono); font-size:12px; color:#c8d2e4;
+    white-space:pre; overflow:auto; height:100%;
+  }
+  .inspector{
+    position:absolute; right:0; top:0; bottom:0; width:min(520px,60%);
+    background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; box-shadow:-24px 0 40px -30px #000;
+  }
+  .inspector header{
+    display:flex; align-items:center; gap:10px; padding:10px 14px;
+    border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px;
+  }
+  .inspector header .x{margin-left:auto; cursor:pointer; color:var(--muted); border:none; background:none; font-size:18px}
+  .inspector header .x:hover{color:var(--text)}
+  .inspector .body{flex:1; overflow:auto}
+  .seg{display:flex; gap:0; padding:8px 14px; border-bottom:1px solid var(--line-soft)}
+  .seg button{
+    background:#131926; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:4px 10px; font-family:var(--mono); font-size:11px;
+  }
+  .seg button:first-child{border-radius:6px 0 0 6px}
+  .seg button:last-child{border-radius:0 6px 6px 0; border-left:none}
+  .seg button.on{color:var(--amber); background:#1a2130}
+
+  /* ---- empty state ---- */
+  .empty{flex:1; display:flex; align-items:center; justify-content:center; padding:24px}
+  .drop{
+    width:min(560px,100%); border:1.5px dashed var(--line); border-radius:16px;
+    padding:40px 36px; text-align:center; background:linear-gradient(180deg,#141a26,#12172180);
+    transition:border-color .15s, background .15s;
+  }
+  .drop.hot{border-color:var(--amber); background:#161d29}
+  .drop .mark{
+    font-family:var(--mono); font-size:26px; color:var(--amber); margin-bottom:14px;
+    letter-spacing:-.02em;
+  }
+  .drop h1{font-size:20px; margin:0 0 8px; font-weight:650; letter-spacing:-.01em}
+  .drop p{color:var(--muted); margin:0 auto 18px; max-width:44ch}
+  .drop .fine{font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6}
+  .drop .fine code{font-family:var(--mono); color:var(--text); background:#0d121c; padding:1px 6px; border-radius:4px; border:1px solid var(--line)}
+
+  .placeholder{padding:40px; text-align:center; color:var(--muted)}
+  .placeholder b{color:var(--text); display:block; margin-bottom:6px; font-weight:600}
+  .placeholder .btn{margin-top:14px}
+
+  /* ---- status bar ---- */
+  .status{
+    flex:0 0 auto; height:28px; display:flex; align-items:center; gap:16px;
+    padding:0 14px; border-top:1px solid var(--line); background:var(--panel);
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+  }
+  .status b{color:var(--text); font-weight:550}
+  .hidden{display:none !important}
+</style>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="glyph">.sdocx</span>
+    <b>inspector</b>
+    <small>Samsung Notes file reader</small>
+  </div>
+  <div class="spacer"></div>
+  <div id="engineChip" class="chip busy retry" title="Reverse-engineered @twango/sdocx WASM parser">
+    <span class="dot"></span><span id="engineText">loading ink engine…</span>
+  </div>
+  <button class="btn" id="openBtn">Open files</button>
+  <input type="file" id="fileInput" accept=".sdocx,.sdoc,.zip" multiple class="hidden" />
+</div>
+
+<div class="work">
+  <aside class="side">
+    <h3>Loaded notes</h3>
+    <div class="notes" id="noteList">
+      <div class="empty-hint">No files yet. Open a <code>.sdocx</code> to begin.</div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="pages">Pages <span class="count" id="cnt-pages">0</span></button>
+      <button class="tab" data-tab="media">Media <span class="count" id="cnt-media">0</span></button>
+      <button class="tab" data-tab="structure">Structure <span class="count" id="cnt-files">0</span></button>
+      <button class="tab" data-tab="raw">Raw</button>
+    </div>
+
+    <div class="toolrow" id="pageTools">
+      <span id="pageInfo">—</span>
+      <div class="spacer" style="flex:1"></div>
+      <div class="zoom">
+        <button id="zoomOut">−</button>
+        <span id="zoomVal">100%</span>
+        <button id="zoomIn">+</button>
+      </div>
+    </div>
+
+    <div class="view" id="view">
+      <div class="empty" id="emptyState">
+        <div class="drop" id="drop">
+          <div class="mark">{ ⟶ }</div>
+          <h1>Drop a Samsung Notes file</h1>
+          <p>Reads <code>.sdocx</code> and older <code>.sdoc</code> files entirely in your browser. Nothing is uploaded.</p>
+          <button class="btn" id="openBtn2">Choose files</button>
+          <div class="fine">
+            Structure, embedded images, audio, and metadata read from the Zip container.<br/>
+            Handwriting strokes render through the <code>@twango/sdocx</code> parser when the ink engine loads.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <span>file: <b id="stFile">—</b></span>
+      <span>size: <b id="stSize">—</b></span>
+      <span>pages: <b id="stPages">—</b></span>
+      <span>entries: <b id="stEntries">—</b></span>
+      <div style="flex:1"></div>
+      <span id="stEngine">engine: checking</span>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import JSZip from 'jszip';
+import * as sdocx from '@twango/sdocx';
+
+/* ---------------------------------------------------------------
+   Ink engine loader.
+   @twango/sdocx ships a bundler-target wasm-bindgen build: the wasm
+   is instantiated at import time (top-level await, handled by Vite)
+   and the only export is `parse(bytes) -> Document`. So by the time
+   this module runs, the engine is already live — we just verify the
+   export and flip the chip.
+----------------------------------------------------------------*/
+let ink = null;          // { parse } once ready
+let inkState = 'busy';   // busy | ready | off
+
+const engineChip = document.getElementById('engineChip');
+const engineText = document.getElementById('engineText');
+const stEngine   = document.getElementById('stEngine');
+
+function setEngine(state, msg){
+  inkState = state;
+  engineChip.className = 'chip ' + state + (state === 'off' ? ' retry' : '');
+  engineText.textContent = msg;
+  stEngine.textContent = 'engine: ' + (state === 'ready' ? 'ready' : state === 'busy' ? 'loading' : 'unavailable');
+}
+
+async function loadInk(){
+  setEngine('busy', 'loading ink engine…');
+  try{
+    if(typeof sdocx.parse !== 'function'){
+      throw new Error('no parse() export. exports: ' + Object.keys(sdocx).join(', '));
+    }
+    ink = { parse: sdocx.parse };
+    setEngine('ready', 'ink engine ready');
+    if(current) renderActive();   // re-render now that strokes are available
+  }catch(e){
+    console.error('[ink] init failed', e);
+    setEngine('off', 'ink engine unavailable — retry');
+  }
+}
+engineChip.addEventListener('click', () => { if(inkState === 'off') loadInk(); });
+
+/* ---------------------------------------------------------------
+   State
+----------------------------------------------------------------*/
+const notes = [];        // { id, name, size, zip, entries[], media[], meta[], pageFiles[], doc|null, inkError }
+let current = null;
+let activeTab = 'pages';
+let zoom = 1;
+
+loadInk();   // start after state decls — loadInk() reads `current` (TDZ if called earlier)
+
+/* ---------------------------------------------------------------
+   Helpers
+----------------------------------------------------------------*/
+const $ = id => document.getElementById(id);
+function fmtBytes(n){
+  if(n == null) return '—';
+  if(n < 1024) return n + ' B';
+  if(n < 1048576) return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(2) + ' MB';
+}
+const IMG = /\.(png|jpe?g|gif|webp|bmp)$/i;
+const AUD = /\.(m4a|mp3|aac|wav|ogg|amr)$/i;
+const META = /(\.note$|\.dat$|\.json$|meta|pageIdInfo)/i;
+const PAGE = /(\.page$|page.*\.dat$)/i;
+
+function classify(name){
+  if(IMG.test(name)) return 'media';
+  if(AUD.test(name)) return 'media';
+  if(PAGE.test(name)) return 'ink';
+  if(META.test(name)) return 'meta';
+  return '';
+}
+
+// Safe stringify that survives typed arrays, bigints, cycles.
+function safeStringify(obj, space=2){
+  const seen = new WeakSet();
+  return JSON.stringify(obj, (k, v) => {
+    if(typeof v === 'bigint') return v.toString() + 'n';
+    if(ArrayBuffer.isView(v)) return `[${v.constructor.name} len=${v.length}]`;
+    if(v && typeof v === 'object'){
+      if(seen.has(v)) return '[circular]';
+      seen.add(v);
+      // collapse huge point arrays for readability
+      if(Array.isArray(v) && v.length > 200) return v.slice(0,200).concat([`…(+${v.length-200} more)`]);
+    }
+    return v;
+  }, space);
+}
+
+function colorToCss(c){
+  if(c == null) return '#1a1a1a';
+  if(typeof c === 'string') return c;
+  if(typeof c === 'number'){
+    const n = c >>> 0;
+    const a = (n>>>24)&0xff, r = (n>>>16)&0xff, g = (n>>>8)&0xff, b = n&0xff;
+    if(a === 0){
+      if(c <= 0xFFFFFF) return `rgb(${r},${g},${b})`;
+      return `rgb(${r},${g},${b})`;
+    }
+    return `rgba(${r},${g},${b},${(a/255).toFixed(3)})`;
+  }
+  if(Array.isArray(c)){
+    let [r=0,g=0,b=0,a=255] = c; if(a<=1) a*=255;
+    return `rgba(${r|0},${g|0},${b|0},${(a/255).toFixed(3)})`;
+  }
+  if(typeof c === 'object'){
+    const r=c.r??c.red??0, g=c.g??c.green??0, b=c.b??c.blue??0;
+    let a=c.a??c.alpha??255; if(a<=1) a*=255;
+    return `rgba(${r|0},${g|0},${b|0},${(a/255).toFixed(3)})`;
+  }
+  return '#1a1a1a';
+}
+
+// Pull an {x,y,pr} list from whatever shape the parser exposes.
+function getPoints(stroke){
+  let p = stroke.points ?? stroke.pts ?? stroke.path ?? stroke.coords;
+  if(!p) return [];
+  if(ArrayBuffer.isView(p) || (Array.isArray(p) && typeof p[0] === 'number')){
+    const out = []; for(let i=0;i+1<p.length;i+=2) out.push({x:p[i], y:p[i+1]}); return out;
+  }
+  if(Array.isArray(p) && p.length && typeof p[0] === 'object'){
+    // @twango/sdocx emits uninitialized-memory garbage in two forms, and the
+    // real coordinate space is small (page pixels, ~0..2000), so a magnitude
+    // window rejects both cleanly:
+    //  1. Whole strokes (~7%) decode to huge floats (e.g. 2.8e+160, -2e+307);
+    //     every point is dropped, so the stroke vanishes rather than blowing up
+    //     the page bounds and pushing everything off-canvas.
+    //  2. A spurious leading sample carries denormal floats (e.g. 9e-271,
+    //     -8e-321). It sits at ~(0,0), so leaving it in draws a stray line from
+    //     the page corner to the first real point. `points` is sometimes one
+    //     longer than `pressures`, so a length check alone misses these.
+    // A coordinate is real iff it is 0 or |v| in [1e-3, 1e5]. Pressures track
+    // `points` from the tail, so align from the end.
+    const junk = v => !Number.isFinite(v) || Math.abs(v) > 1e5 || (v !== 0 && Math.abs(v) < 1e-3);
+    const pr = Array.isArray(stroke.pressures) ? stroke.pressures : null;
+    const prOff = pr ? p.length - pr.length : 0; // leading points with no pressure
+    const out = [];
+    for(let i = 0; i < p.length; i++){
+      const pt = p[i];
+      const x = pt.x ?? pt[0] ?? 0, y = pt.y ?? pt[1] ?? 0;
+      if(junk(x) || junk(y)) continue;
+      out.push({ x, y, pr: pr ? pr[i - prOff] : (pt.pressure ?? pt.pr ?? pt.p) });
+    }
+    return out;
+  }
+  return [];
+}
+
+/* ---------------------------------------------------------------
+   File intake
+----------------------------------------------------------------*/
+async function ingest(fileList){
+  for(const file of fileList){
+    const note = { id: crypto.randomUUID(), name: file.name, size: file.size,
+                   entries: [], media: [], meta: [], pageFiles: [], doc: null, inkError: null };
+    const buf = await file.arrayBuffer();
+
+    // 1. Zip container (works for both .sdoc and .sdocx)
+    try{
+      const zip = await JSZip.loadAsync(buf);
+      const paths = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+      for(const path of paths){
+        const f = zip.files[path];
+        const kind = classify(path);
+        const size = f._data ? (f._data.uncompressedSize ?? null) : null;
+        const entry = { path, kind, size, f };
+        note.entries.push(entry);
+        if(kind === 'ink') note.pageFiles.push(entry);
+        if(kind === 'meta') note.meta.push(entry);
+        if(IMG.test(path)){
+          const blob = await f.async('blob');
+          note.media.push({ path, type:'image', url: URL.createObjectURL(blob), size });
+        }else if(AUD.test(path)){
+          const blob = await f.async('blob');
+          note.media.push({ path, type:'audio', url: URL.createObjectURL(blob), size });
+        }
+      }
+    }catch(e){
+      note.zipError = String(e && e.message || e);
+    }
+
+    // 2. Ink parse (needs the WASM engine)
+    if(ink){
+      try{ note.doc = ink.parse(new Uint8Array(buf)); }
+      catch(e){ note.inkError = String(e && e.message || e); }
+    }else{
+      note.pendingBuf = new Uint8Array(buf); // keep for later if engine loads
+    }
+
+    notes.push(note);
+  }
+  renderNoteList();
+  if(!current && notes.length) select(notes[notes.length-1].id);
+  else renderActive();
+}
+
+/* ---------------------------------------------------------------
+   Sidebar
+----------------------------------------------------------------*/
+function renderNoteList(){
+  const list = $('noteList');
+  if(!notes.length){ list.innerHTML = '<div class="empty-hint">No files yet.</div>'; return; }
+  list.innerHTML = '';
+  for(const n of notes){
+    const div = document.createElement('div');
+    div.className = 'note-item' + (current === n ? ' active' : '');
+    const pages = n.doc && n.doc.pages ? n.doc.pages.length : (n.pageFiles.length || '·');
+    div.innerHTML = `<div class="n">${escapeHtml(n.name)}</div>
+      <div class="m">${fmtBytes(n.size)} · ${pages} pg · ${n.entries.length} entries</div>`;
+    div.onclick = () => select(n.id);
+    list.appendChild(div);
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function select(id){
+  current = notes.find(n => n.id === id) || null;
+  // late ink parse if the engine arrived after ingest
+  if(current && !current.doc && ink && current.pendingBuf){
+    try{ current.doc = ink.parse(current.pendingBuf); }
+    catch(e){ current.inkError = String(e && e.message || e); }
+  }
+  renderNoteList();
+  renderActive();
+}
+
+/* ---------------------------------------------------------------
+   Tabs + active render
+----------------------------------------------------------------*/
+$('tabs').addEventListener('click', e => {
+  const b = e.target.closest('.tab'); if(!b) return;
+  activeTab = b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === b));
+  renderActive();
+});
+
+function renderActive(){
+  const view = $('view');
+  const pageTools = $('pageTools');
+  pageTools.classList.toggle('hidden', activeTab !== 'pages' || !current);
+
+  if(!current){
+    view.innerHTML = '';
+    view.appendChild(buildEmptyState());
+    updateStatus();
+    updateCounts();
+    return;
+  }
+  updateCounts();
+  updateStatus();
+
+  if(activeTab === 'pages')      renderPages(view);
+  else if(activeTab === 'media') renderMedia(view);
+  else if(activeTab === 'structure') renderStructure(view);
+  else if(activeTab === 'raw')   renderRaw(view);
+}
+
+function updateCounts(){
+  $('cnt-pages').textContent = current && current.doc && current.doc.pages ? current.doc.pages.length : (current ? current.pageFiles.length : 0);
+  $('cnt-media').textContent = current ? current.media.length : 0;
+  $('cnt-files').textContent = current ? current.entries.length : 0;
+}
+function updateStatus(){
+  $('stFile').textContent    = current ? current.name : '—';
+  $('stSize').textContent    = current ? fmtBytes(current.size) : '—';
+  $('stPages').textContent   = current && current.doc && current.doc.pages ? current.doc.pages.length : '—';
+  $('stEntries').textContent = current ? current.entries.length : '—';
+}
+
+/* ---------------------------------------------------------------
+   Pages (handwriting)
+----------------------------------------------------------------*/
+function renderPages(view){
+  view.innerHTML = '';
+  const doc = current.doc;
+
+  if(!doc){
+    const ph = document.createElement('div');
+    ph.className = 'placeholder';
+    if(inkState !== 'ready'){
+      ph.innerHTML = `<b>Ink engine not loaded</b>
+        The WASM parser (<code>@twango/sdocx</code>) failed to initialize. Structure, Media,
+        and Raw tabs still work. Check the browser console for the init error, then retry.
+        <button class="btn" id="retryInk" style="margin-top:16px">Retry ink engine</button>`;
+      ph.querySelector('#retryInk').onclick = loadInk;
+    }else if(current.inkError){
+      ph.innerHTML = `<b>Couldn't parse strokes</b>
+        The engine loaded but rejected this file — likely an older <code>.sdoc</code> or a
+        format revision the parser doesn't cover yet.<br/><br/>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${escapeHtml(current.inkError)}</span>`;
+    }else{
+      ph.innerHTML = `<b>No pages found</b> This file parsed but exposed no drawable pages.`;
+    }
+    view.appendChild(ph);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'pages';
+  const pages = doc.pages || [];
+  $('pageInfo').textContent = `${pages.length} page${pages.length===1?'':'s'}` +
+     (doc.background ? ` · bg ${colorToCss(doc.background)}` : '');
+
+  pages.forEach((page, i) => {
+    const pw = document.createElement('div');
+    pw.className = 'page-wrap';
+    const strokes = page.strokes || page.objects || [];
+    const label = document.createElement('div');
+    label.className = 'page-label';
+    label.innerHTML = `<span>page ${i+1}</span><span>${strokes.length} strokes</span>`;
+    const cv = document.createElement('canvas');
+    cv.className = 'page';
+    pw.appendChild(label); pw.appendChild(cv);
+    wrap.appendChild(pw);
+    drawPage(cv, page, doc);
+  });
+  view.appendChild(wrap);
+}
+
+function drawPage(canvas, page, doc){
+  const strokes = (page.strokes || page.objects || []).map(s => ({
+    pts: getPoints(s),
+    color: colorToCss(s.color ?? s.colour ?? s.rgb),
+    width: (s.pen_width ?? s.penWidth ?? s.width ?? 2),
+  }));
+
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const s of strokes) for(const p of s.pts){
+    if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y;
+    if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y;
+  }
+  let W = page.width ?? page.pageWidth ?? page.w;
+  let H = page.height ?? page.pageHeight ?? page.h;
+  const pad = 24;
+  if(!isFinite(minX)){ minX=0; minY=0; maxX=W||600; maxY=H||400; }
+  const offX = minX < 0 ? -minX : 0;
+  const offY = minY < 0 ? -minY : 0;
+  if(!W) W = maxX + offX + pad;
+  if(!H) H = maxY + offY + pad;
+
+  const container = canvas.parentElement.parentElement; // .view
+  const cssW = Math.max(280, Math.min((container.clientWidth||900) - 48, 900)) * zoom;
+  const dpr = window.devicePixelRatio || 1;
+  const sc = cssW / W;
+  const cssH = H * sc;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr*sc, 0, 0, dpr*sc, dpr*sc*offX, dpr*sc*offY);
+
+  const bg = page.background ?? page.backgroundColor ?? doc.background;
+  ctx.fillStyle = bg != null ? colorToCss(bg) : '#f7f5ef';
+  ctx.fillRect(-offX, -offY, W, H);
+
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for(const s of strokes){
+    if(s.pts.length < 1) continue;
+    ctx.strokeStyle = s.color;
+    ctx.beginPath();
+    ctx.moveTo(s.pts[0].x, s.pts[0].y);
+    for(let i=1;i<s.pts.length;i++){
+      const p = s.pts[i];
+      ctx.lineWidth = s.width * (p.pr ? Math.max(0.3, p.pr) : 1);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    }
+    if(s.pts.length === 1){ // single dot
+      ctx.fillStyle = s.color;
+      ctx.beginPath(); ctx.arc(s.pts[0].x, s.pts[0].y, Math.max(1,s.width/2), 0, 7); ctx.fill();
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   Media
+----------------------------------------------------------------*/
+function renderMedia(view){
+  view.innerHTML = '';
+  if(!current.media.length){
+    view.innerHTML = '<div class="placeholder"><b>No embedded media</b> This note has no images or audio inside its container.</div>';
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className = 'media-grid';
+  for(const m of current.media){
+    const card = document.createElement('div');
+    card.className = 'media-card';
+    const base = m.path.split('/').pop();
+    if(m.type === 'image'){
+      card.innerHTML = `<img src="${m.url}" alt="${escapeHtml(base)}"/>
+        <div class="cap"><b>${escapeHtml(base)}</b>${fmtBytes(m.size)}</div>`;
+    }else{
+      card.innerHTML = `<div class="cap"><b>${escapeHtml(base)}</b>${fmtBytes(m.size)}</div>
+        <audio controls src="${m.url}" style="padding:0 10px 10px"></audio>`;
+    }
+    grid.appendChild(card);
+  }
+  view.appendChild(grid);
+}
+
+/* ---------------------------------------------------------------
+   Structure (zip entry table + inspector)
+----------------------------------------------------------------*/
+function renderStructure(view){
+  view.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'tree';
+  let rows = '';
+  for(const e of current.entries){
+    const tagClass = e.kind === 'ink' ? 'ink' : e.kind === 'media' ? 'media' : e.kind === 'meta' ? 'meta' : '';
+    const tag = e.kind ? `<span class="tag ${tagClass}">${e.kind}</span>` : '';
+    const inspectable = /\.(note|dat|json|txt|xml)$/i.test(e.path) || e.kind === 'meta';
+    rows += `<tr class="${inspectable?'click':''}" data-path="${encodeURIComponent(e.path)}">
+      <td>${escapeHtml(e.path)}</td><td>${tag}</td><td class="sz">${fmtBytes(e.size)}</td></tr>`;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>entry</th><th></th><th class="sz">size</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  view.appendChild(wrap);
+  wrap.querySelectorAll('tr.click').forEach(tr => {
+    tr.onclick = () => openInspector(decodeURIComponent(tr.dataset.path));
+  });
+}
+
+async function openInspector(path){
+  const entry = current.entries.find(e => e.path === path); if(!entry) return;
+  const bytes = await entry.f.async('uint8array');
+  document.querySelector('.inspector')?.remove();
+  const panel = document.createElement('div');
+  panel.className = 'inspector';
+  panel.innerHTML = `<header>${escapeHtml(path.split('/').pop())}
+      <span style="color:var(--muted)">${fmtBytes(bytes.length)}</span>
+      <button class="x" title="close">×</button></header>
+    <div class="seg"><button data-m="text" class="on">text</button><button data-m="hex">hex</button></div>
+    <div class="body"><pre class="raw" id="inspBody"></pre></div>`;
+  $('view').appendChild(panel);
+  panel.querySelector('.x').onclick = () => panel.remove();
+  const body = panel.querySelector('#inspBody');
+  const render = m => body.textContent = (m === 'hex') ? toHex(bytes) : toText(bytes);
+  panel.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+    panel.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+    render(b.dataset.m);
+  });
+  render('text');
+}
+
+function toText(bytes){
+  try{ const s = new TextDecoder('utf-8', {fatal:false}).decode(bytes);
+       return s.replace(/[\x00-\x08\x0e-\x1f]/g, '·'); }
+  catch{ return '[binary]'; }
+}
+function toHex(bytes){
+  const lines = []; const n = Math.min(bytes.length, 8192);
+  for(let i=0;i<n;i+=16){
+    const slice = bytes.subarray(i, i+16);
+    const hex = [...slice].map(b => b.toString(16).padStart(2,'0')).join(' ');
+    const asc = [...slice].map(b => (b>=32&&b<127)?String.fromCharCode(b):'.').join('');
+    lines.push(i.toString(16).padStart(8,'0') + '  ' + hex.padEnd(48) + '  ' + asc);
+  }
+  if(bytes.length > n) lines.push(`… (${bytes.length - n} more bytes)`);
+  return lines.join('\n');
+}
+
+/* ---------------------------------------------------------------
+   Raw (parsed doc + zip manifest)
+----------------------------------------------------------------*/
+function renderRaw(view){
+  view.innerHTML = '';
+  const pre = document.createElement('pre');
+  pre.className = 'raw';
+  const manifest = current.entries.map(e => ({ path:e.path, kind:e.kind||null, size:e.size }));
+  const out = {
+    file: current.name,
+    size: current.size,
+    zip: { entries: manifest.length, files: manifest },
+    ink: current.doc
+      ? { pages: (current.doc.pages||[]).length, parsed: current.doc }
+      : (inkState==='ready' ? { error: current.inkError || 'no pages' } : { status: 'ink engine not loaded' }),
+  };
+  pre.textContent = safeStringify(out);
+  view.appendChild(pre);
+}
+
+/* ---------------------------------------------------------------
+   Empty state + wiring
+----------------------------------------------------------------*/
+function buildEmptyState(){
+  const clone = document.getElementById('emptyState');
+  return clone ? clone : document.createElement('div');
+}
+
+// preserve original empty state node to re-insert
+const emptyNode = document.getElementById('emptyState').cloneNode(true);
+function reinsertEmpty(){
+  const v = $('view'); v.innerHTML = ''; const n = emptyNode.cloneNode(true);
+  v.appendChild(n); wireDrop(n.querySelector('#drop')); n.querySelector('#openBtn2').onclick = pick;
+}
+
+const fileInput = $('fileInput');
+function pick(){ fileInput.click(); }
+$('openBtn').onclick = pick;
+document.getElementById('openBtn2').onclick = pick;
+fileInput.onchange = () => { if(fileInput.files.length){ ingest(fileInput.files); fileInput.value=''; } };
+
+function wireDrop(el){
+  if(!el) return;
+  ['dragenter','dragover'].forEach(ev => el.addEventListener(ev, e => { e.preventDefault(); el.classList.add('hot'); }));
+  ['dragleave','drop'].forEach(ev => el.addEventListener(ev, e => { e.preventDefault(); el.classList.remove('hot'); }));
+  el.addEventListener('drop', e => { if(e.dataTransfer.files.length) ingest(e.dataTransfer.files); });
+}
+wireDrop($('drop'));
+
+// whole-window drop
+['dragover','drop'].forEach(ev => window.addEventListener(ev, e => e.preventDefault()));
+window.addEventListener('drop', e => { if(e.dataTransfer && e.dataTransfer.files.length) ingest(e.dataTransfer.files); });
+
+// zoom
+$('zoomIn').onclick  = () => { zoom = Math.min(3, zoom + 0.15); $('zoomVal').textContent = Math.round(zoom*100)+'%'; if(activeTab==='pages') renderActive(); };
+$('zoomOut').onclick = () => { zoom = Math.max(0.4, zoom - 0.15); $('zoomVal').textContent = Math.round(zoom*100)+'%'; if(activeTab==='pages') renderActive(); };
+
+// redraw pages on resize
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if(current && activeTab==='pages') renderActive(); }, 150); });
+</script>
