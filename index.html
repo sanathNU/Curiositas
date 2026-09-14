@@ -6,6 +6,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>sdocx inspector</title>
+<script>
+  // set theme before first paint to avoid a flash of the wrong mode
+  try{
+    var t = localStorage.getItem('theme') ||
+      ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.dataset.theme = t;
+  }catch(e){}
+</script>
 <style>
   /* gwern.net-inspired: warm paper, serif reading column, sans small-caps
      labels, mono for data, hairline rules, almost no chrome. */
@@ -24,6 +32,20 @@
     --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --sans: "Source Sans 3", "Source Sans Pro", -apple-system, system-ui, "Segoe UI", sans-serif;
     --serif: "Source Serif 4", "Source Serif Pro", Charter, "Bitstream Charter", "Iowan Old Style", Georgia, serif;
+  }
+  /* dark mode: warm near-black, keeps the oxblood but lightened for contrast */
+  :root[data-theme="dark"]{
+    --paper:#1b1a16;
+    --paper-2:#232019;
+    --fold:#2c2820;
+    --text:#e9e4d6;
+    --muted:#a7a08d;
+    --faint:#7f7967;
+    --line:#3a352a;
+    --line-soft:#2b2820;
+    --accent:#e0674f;
+    --ok:#82ac86;
+    --danger:#d98a76;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -226,6 +248,38 @@
     font-family:var(--mono); font-size:11px; color:var(--faint);
   }
   .status b{color:var(--text); font-weight:600}
+
+  /* ---- icon buttons (theme / about) ---- */
+  .icon-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:32px; height:32px; padding:0; cursor:pointer; font-size:15px;
+    background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:2px;
+  }
+  .icon-btn:hover{color:var(--text); border-color:var(--text)}
+
+  /* ---- about modal ---- */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    padding:24px; background:rgba(26,22,14,.42); backdrop-filter:blur(1.5px);
+  }
+  .modal{
+    position:relative; width:100%; max-width:600px; max-height:86vh; overflow:auto;
+    background:var(--paper); color:var(--text); border:1px solid var(--text); border-radius:2px;
+    padding:40px 44px; box-shadow:0 24px 70px -24px rgba(0,0,0,.55);
+  }
+  .modal .x{
+    position:absolute; top:14px; right:16px; border:none; background:none; cursor:pointer;
+    color:var(--muted); font-size:22px; line-height:1;
+  }
+  .modal .x:hover{color:var(--accent)}
+  .modal .eyebrow{font-family:var(--sans); text-transform:uppercase; letter-spacing:.11em; font-size:11px; font-weight:600; color:var(--faint); margin:0 0 6px}
+  .modal h1{font-family:var(--serif); font-size:27px; font-weight:600; letter-spacing:-.01em; margin:0 0 18px}
+  .modal p{font-family:var(--serif); font-size:15.5px; line-height:1.62; margin:0 0 14px; color:var(--text)}
+  .modal p.small{font-size:13px; color:var(--muted)}
+  .modal h2{font-family:var(--sans); text-transform:uppercase; letter-spacing:.08em; font-size:12px; font-weight:600; color:var(--muted); margin:24px 0 8px; padding-top:16px; border-top:1px solid var(--line-soft)}
+  .modal code{font-family:var(--mono); font-size:.84em; background:var(--paper-2); border:1px solid var(--line); border-radius:2px; padding:1px 5px}
+  .modal ul{margin:0 0 14px; padding-left:20px}
+  .modal li{font-family:var(--serif); font-size:15px; line-height:1.6; margin-bottom:5px}
   .hidden{display:none !important}
 </style>
 
@@ -239,6 +293,8 @@
   <div id="engineChip" class="chip busy retry" title="Reverse-engineered @twango/sdocx WASM parser">
     <span class="dot"></span><span id="engineText">loading ink engine…</span>
   </div>
+  <button class="icon-btn" id="aboutBtn" title="About" aria-label="About">?</button>
+  <button class="icon-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">☾</button>
   <button class="btn" id="openBtn">Open files</button>
   <input type="file" id="fileInput" accept=".sdocx,.sdoc,.zip" multiple class="hidden" />
 </div>
@@ -293,6 +349,34 @@
       <span id="stEngine">engine: checking</span>
     </div>
   </section>
+</div>
+
+<div class="modal-backdrop hidden" id="aboutModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="About sdocx inspector">
+    <button class="x" id="aboutClose" aria-label="Close">×</button>
+    <p class="eyebrow">About</p>
+    <h1>sdocx inspector</h1>
+    <p>A viewer for Samsung Notes files — the <code>.sdocx</code> format (and older
+      <code>.sdoc</code>) that Samsung Notes exports. Open a file to read its
+      handwriting, browse embedded images and audio, and inspect the raw archive.</p>
+    <p>Everything runs in your browser. The file is read locally and
+      <b>never uploaded</b> — no server, no tracking, no external requests.</p>
+
+    <h2>What it shows</h2>
+    <ul>
+      <li><b>Pages</b> — handwriting rendered stroke-by-stroke on canvas.</li>
+      <li><b>Media</b> — images and audio embedded in the note.</li>
+      <li><b>Structure</b> — the internal Zip entries; click one to inspect text/hex.</li>
+      <li><b>Raw</b> — the fully parsed document as JSON.</li>
+    </ul>
+
+    <h2>How it works</h2>
+    <p class="small">An <code>.sdocx</code> is a Zip container, read here with JSZip.
+      Handwriting is decoded by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      a reverse-engineered WebAssembly parser. It's best-effort: a small fraction
+      of strokes decode to garbage and are dropped, so some ink may be missing.
+      It's a parser limitation, not lost data — keep the original file.</p>
+  </div>
 </div>
 
 <script type="module">
@@ -824,4 +908,33 @@ $('zoomOut').onclick = () => { zoom = Math.max(0.4, zoom - 0.15); $('zoomVal').t
 
 // redraw pages on resize
 let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if(current && activeTab==='pages') renderActive(); }, 150); });
+
+/* ---------------------------------------------------------------
+   Theme (light default; persisted; falls back to system preference)
+----------------------------------------------------------------*/
+const themeToggle = $('themeToggle');
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  themeToggle.textContent = t === 'dark' ? '☀' : '☾';
+  themeToggle.title = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+}
+const savedTheme = localStorage.getItem('theme');
+const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+themeToggle.onclick = () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+};
+
+/* ---------------------------------------------------------------
+   About modal
+----------------------------------------------------------------*/
+const aboutModal = $('aboutModal');
+const openAbout  = () => aboutModal.classList.remove('hidden');
+const closeAbout = () => aboutModal.classList.add('hidden');
+$('aboutBtn').onclick = openAbout;
+$('aboutClose').onclick = closeAbout;
+aboutModal.addEventListener('click', e => { if(e.target === aboutModal) closeAbout(); });
+window.addEventListener('keydown', e => { if(e.key === 'Escape') closeAbout(); });
 </script>
