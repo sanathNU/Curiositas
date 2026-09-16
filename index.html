@@ -1,11 +1,11 @@
 <!--
-  sdocx inspector — a client-side viewer for Samsung Notes files.
+  unsdocx — a client-side viewer for Samsung Notes files.
   Zip container browsing + media + metadata works with JSZip alone.
   Handwriting rendering loads the reverse-engineered @twango/sdocx WASM parser at runtime.
 -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>sdocx inspector</title>
+<title>unsdocx</title>
 <script>
   // set theme before first paint to avoid a flash of the wrong mode
   try{
@@ -162,10 +162,47 @@
     font-family:var(--sans); font-size:11px; text-transform:uppercase; letter-spacing:.08em;
     color:var(--faint); margin-bottom:8px; display:flex; justify-content:space-between;
   }
-  canvas.page{
-    display:block; width:100%; border-radius:0;
+  .page-label .meta{display:flex; align-items:center; gap:10px}
+  /* Save-PNG sits on the label, revealed on hover of the page but always
+     present for keyboard/touch (no hover on touch, so never hide it there). */
+  .save-png{
+    appearance:none; cursor:pointer; font-family:var(--sans); font-weight:600;
+    text-transform:uppercase; letter-spacing:.06em; font-size:10px;
+    background:var(--paper); color:var(--muted);
+    border:1px solid var(--line); border-radius:2px; padding:3px 8px;
+    opacity:0; transition:opacity .12s, color .12s, border-color .12s;
+  }
+  .page-wrap:hover .save-png, .save-png:focus-visible{opacity:1}
+  .save-png:hover{color:var(--text); border-color:var(--text)}
+  .save-png[disabled]{cursor:default; opacity:1; color:var(--faint)}
+  @media (hover:none){ .save-png{opacity:1} }
+
+  img.page{
+    display:block; width:100%; height:auto; border-radius:0; background:var(--paper-2);
     box-shadow:0 1px 3px rgba(40,32,16,.12), 0 12px 28px -18px rgba(40,32,16,.35);
     border:1px solid var(--line);
+  }
+  .page-error{
+    padding:20px; border:1px solid var(--line); background:var(--paper-2);
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+  }
+
+  /* ---- busy overlay (parsing a big note blocks for ~1.5s) ---- */
+  .busy-veil{
+    position:absolute; inset:0; z-index:20; display:flex; gap:14px;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:color-mix(in srgb, var(--paper) 86%, transparent);
+    font-family:var(--sans); font-size:13px; color:var(--muted);
+  }
+  .busy-veil .ring{
+    width:26px; height:26px; border-radius:50%;
+    border:2px solid var(--line); border-top-color:var(--accent);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){
+    .busy-veil .ring{animation-duration:2.4s}
+    .chip.busy .dot{animation:none}
   }
 
   /* ---- media ---- */
@@ -221,7 +258,10 @@
   .seg button.on{color:var(--paper); background:var(--text); border-color:var(--text)}
 
   /* ---- empty state ---- */
-  .empty{flex:1; display:flex; align-items:center; justify-content:center; padding:24px}
+  /* .view is a plain scroll box, so flex:1 alone won't stretch this;
+     min-height keeps the drop card optically centred instead of hugging
+     the top of a tall empty column. */
+  .empty{min-height:100%; display:flex; align-items:center; justify-content:center; padding:24px}
   .drop{
     width:min(560px,100%); border:1px dashed var(--line); border-radius:2px;
     padding:48px 40px; text-align:center; background:var(--paper);
@@ -281,27 +321,101 @@
   .modal ul{margin:0 0 14px; padding-left:20px}
   .modal li{font-family:var(--serif); font-size:15px; line-height:1.6; margin-bottom:5px}
   .hidden{display:none !important}
+
+  /* ---- nothing loaded yet ----
+     Tabs reading "PAGES 0 / MEDIA 0 / STRUCTURE 0", a zoom control, and an
+     empty status bar are all noise before a file exists. Hide the chrome and
+     let the drop target be the only thing on screen. */
+  body[data-state="empty"] .tabs,
+  body[data-state="empty"] .toolrow,
+  body[data-state="empty"] .side,
+  body[data-state="empty"] .status{display:none}
+  body[data-state="empty"] .sidebar-toggle{visibility:hidden}
+
+  /* ---- sidebar toggle (narrow screens only) ---- */
+  .sidebar-toggle{display:none}
+
+  /* ---- narrow screens ----
+     The three-region desktop layout (sidebar | tabs+view | status) does not
+     fit a phone: the sidebar took half the width and the topbar wrapped into
+     the content. Below 860px the sidebar becomes an overlay drawer and the
+     topbar sheds everything that isn't an action. */
+  @media (max-width:860px){
+    .topbar{gap:10px; padding:0 12px; height:50px}
+    .brand small{display:none}          /* tagline */
+    .brand .glyph{display:none}
+    #engineText{display:none}           /* leave the status dot */
+    .chip{padding:4px 7px}
+    .sidebar-toggle{display:inline-flex}
+
+    .side{
+      position:absolute; z-index:30; top:0; bottom:0; left:0; width:min(290px,82vw);
+      transform:translateX(-102%); transition:transform .18s ease;
+      box-shadow:12px 0 36px -26px rgba(40,32,16,.7);
+    }
+    body[data-side="open"] .side{transform:none}
+    .side-scrim{
+      position:absolute; inset:0; z-index:29; background:rgba(26,22,14,.38);
+      opacity:0; pointer-events:none; transition:opacity .18s;
+    }
+    body[data-side="open"] .side-scrim{opacity:1; pointer-events:auto}
+    .work{position:relative}
+
+    /* tabs scroll horizontally rather than squeezing to unreadable */
+    .tabs{
+      padding:0 10px; gap:0; overflow-x:auto; scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:10px 10px; font-size:11px; white-space:nowrap; flex:0 0 auto}
+
+    .toolrow{padding:8px 12px; gap:8px; font-size:11.5px}
+    .pages{padding:14px 10px; gap:20px}
+    .page-wrap{max-width:none !important}   /* zoom sets this; ignore it here */
+    .save-png{opacity:1}                    /* no hover to reveal it on a phone */
+    .media-grid{padding:14px 10px; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px}
+    .tree{padding:12px 10px; font-size:11.5px}
+    .tree td, .tree th{padding:6px 6px}
+    pre.raw{padding:14px 12px; font-size:11px; white-space:pre-wrap; word-break:break-word}
+    .inspector{width:100%; border-left:none}
+    .drop{padding:34px 22px}
+    .drop h1{font-size:20px}
+
+    /* status bar: keep the file name, drop the rest rather than wrap */
+    .status{height:auto; min-height:28px; padding:5px 12px; gap:12px; font-size:10.5px}
+    .status .field.opt{display:none}
+    .modal{padding:26px 22px}
+  }
+
+  /* very narrow: the brand wordmark is the last thing to go */
+  @media (max-width:420px){
+    .brand b{font-size:16px}
+    #openBtnLabel{display:none}     /* button collapses to its icon */
+  }
 </style>
 
 <div class="topbar">
+  <button class="icon-btn sidebar-toggle" id="sidebarToggle"
+          title="Show your files" aria-label="Show your files" aria-expanded="false">☰</button>
   <div class="brand">
+    <b>unsdocx</b>
     <span class="glyph">.sdocx</span>
-    <b>inspector</b>
-    <small>Samsung Notes file reader</small>
+    <small>Samsung Notes reader — because Samsung won't ship one</small>
   </div>
   <div class="spacer"></div>
   <div id="engineChip" class="chip busy retry" title="Reverse-engineered @twango/sdocx WASM parser">
-    <span class="dot"></span><span id="engineText">loading ink engine…</span>
+    <span class="dot"></span><span id="engineText">starting up…</span>
   </div>
-  <button class="icon-btn" id="aboutBtn" title="About" aria-label="About">?</button>
+  <button class="icon-btn" id="aboutBtn" title="About unsdocx" aria-label="About unsdocx">?</button>
   <button class="icon-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">☾</button>
-  <button class="btn" id="openBtn">Open files</button>
+  <button class="btn" id="openBtn">＋<span id="openBtnLabel">Open a note</span></button>
   <input type="file" id="fileInput" accept=".sdocx,.sdoc,.zip" multiple class="hidden" />
 </div>
 
 <div class="work">
+  <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
   <aside class="side">
-    <h3>Loaded notes</h3>
+    <h3>Your files</h3>
     <div class="notes" id="noteList">
       <div class="empty-hint">No files yet. Open a <code>.sdocx</code> to begin.</div>
     </div>
@@ -319,9 +433,11 @@
       <span id="pageInfo">—</span>
       <div class="spacer" style="flex:1"></div>
       <div class="zoom">
-        <button id="zoomOut">−</button>
+        <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
         <span id="zoomVal">100%</span>
-        <button id="zoomIn">+</button>
+        <button id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="zoomReset" title="Reset zoom to 100%" aria-label="Reset zoom"
+                style="width:auto;padding:0 8px;font-size:11px">Reset</button>
       </div>
     </div>
 
@@ -329,33 +445,33 @@
       <div class="empty" id="emptyState">
         <div class="drop" id="drop">
           <div class="mark">{ ⟶ }</div>
-          <h1>Drop a Samsung Notes file</h1>
-          <p>Reads <code>.sdocx</code> and older <code>.sdoc</code> files entirely in your browser. Nothing is uploaded.</p>
-          <button class="btn" id="openBtn2">Choose files</button>
+          <h1>Drop a Samsung Notes file here</h1>
+          <p>Opens <code>.sdocx</code> and older <code>.sdoc</code> notes right in this tab —
+             read the pages, pull out the images, and save any page as a PNG.</p>
+          <button class="btn" id="openBtn2">Choose a file</button>
           <div class="fine">
-            Structure, embedded images, audio, and metadata read from the Zip container.<br/>
-            Handwriting strokes render through the <code>@twango/sdocx</code> parser when the ink engine loads.
+            Nothing is uploaded. Your note never leaves this device.
           </div>
         </div>
       </div>
     </div>
 
     <div class="status">
-      <span>file: <b id="stFile">—</b></span>
-      <span>size: <b id="stSize">—</b></span>
-      <span>pages: <b id="stPages">—</b></span>
-      <span>entries: <b id="stEntries">—</b></span>
+      <span class="field"><b id="stFile">—</b></span>
+      <span class="field opt"><b id="stSize">—</b></span>
+      <span class="field opt"><b id="stPages">—</b></span>
+      <span class="field opt"><b id="stEntries">—</b></span>
       <div style="flex:1"></div>
-      <span id="stEngine">engine: checking</span>
+      <span id="stEngine" class="field opt">starting up</span>
     </div>
   </section>
 </div>
 
 <div class="modal-backdrop hidden" id="aboutModal">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="About sdocx inspector">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="About unsdocx">
     <button class="x" id="aboutClose" aria-label="Close">×</button>
     <p class="eyebrow">About</p>
-    <h1>sdocx inspector</h1>
+    <h1>unsdocx</h1>
     <p>A viewer for Samsung Notes files — the <code>.sdocx</code> format (and older
       <code>.sdoc</code>) that Samsung Notes exports. Open a file to read its
       handwriting, browse embedded images and audio, and inspect the raw archive.</p>
@@ -364,7 +480,7 @@
 
     <h2>What it shows</h2>
     <ul>
-      <li><b>Pages</b> — handwriting rendered stroke-by-stroke on canvas.</li>
+      <li><b>Pages</b> — handwriting and imported images, rendered to SVG by the ink engine. Hover a page to save it as a PNG.</li>
       <li><b>Media</b> — images and audio embedded in the note.</li>
       <li><b>Structure</b> — the internal Zip entries; click one to inspect text/hex.</li>
       <li><b>Raw</b> — the fully parsed document as JSON.</li>
@@ -372,10 +488,11 @@
 
     <h2>How it works</h2>
     <p class="small">An <code>.sdocx</code> is a Zip container, read here with JSZip.
-      Handwriting is decoded by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
-      a reverse-engineered WebAssembly parser. It's best-effort: a small fraction
-      of strokes decode to garbage and are dropped, so some ink may be missing.
-      It's a parser limitation, not lost data — keep the original file.</p>
+      Pages are decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      a reverse-engineered WebAssembly parser, which rasterizes each page to SVG —
+      ink, imported slides, and photos together. It's best-effort and reverse-engineered,
+      so a page may still come out incomplete. That's a parser limitation, not lost
+      data — keep the original file.</p>
   </div>
 </div>
 
@@ -387,11 +504,19 @@ import * as sdocx from '@twango/sdocx';
    Ink engine loader.
    @twango/sdocx ships a bundler-target wasm-bindgen build: the wasm
    is instantiated at import time (top-level await, handled by Vite)
-   and the only export is `parse(bytes) -> Document`. So by the time
-   this module runs, the engine is already live — we just verify the
-   export and flip the chip.
+   and by the time this module runs the engine is already live — we
+   just verify the export and flip the chip.
+
+   We use `DocumentSession` (0.4.0+) rather than the bare `parse()`.
+   The session renders each page to SVG in Rust, which is the only
+   path that draws `page.elements` — imported slides/photos, carried
+   as `Image` entries whose `media_index` cannot be resolved from JS
+   (it restarts at 0 per page and no offset into the flat
+   `metadata.media_assets` list reproduces the right mapping).
+   It also avoids hand-sanitizing the stroke garbage the decoder
+   emits (`pen_width` of 4e+31 became a page-filling black rect).
 ----------------------------------------------------------------*/
-let ink = null;          // { parse } once ready
+let ink = null;          // { Session } once ready
 let inkState = 'busy';   // busy | ready | off
 
 const engineChip = document.getElementById('engineChip');
@@ -402,34 +527,66 @@ function setEngine(state, msg){
   inkState = state;
   engineChip.className = 'chip ' + state + (state === 'off' ? ' retry' : '');
   engineText.textContent = msg;
-  stEngine.textContent = 'engine: ' + (state === 'ready' ? 'ready' : state === 'busy' ? 'loading' : 'unavailable');
+  engineChip.title = state === 'ready'
+    ? 'Page rendering is available (@twango/sdocx)'
+    : state === 'off' ? "Page rendering didn't load — click to try again"
+    : 'Loading the page renderer…';
+  stEngine.textContent = state === 'ready' ? 'ready to render'
+    : state === 'busy' ? 'starting up' : "can't render pages";
 }
 
 async function loadInk(){
-  setEngine('busy', 'loading ink engine…');
+  setEngine('busy', 'starting up…');
   try{
-    if(typeof sdocx.parse !== 'function'){
-      throw new Error('no parse() export. exports: ' + Object.keys(sdocx).join(', '));
+    if(typeof sdocx.DocumentSession !== 'function'){
+      throw new Error('no DocumentSession export. exports: ' + Object.keys(sdocx).join(', '));
     }
-    ink = { parse: sdocx.parse };
-    setEngine('ready', 'ink engine ready');
-    if(current) renderActive();   // re-render now that strokes are available
+    ink = { Session: sdocx.DocumentSession };
+    setEngine('ready', 'ready');
+    // Parse anything ingested before the engine came up, then repaint.
+    for(const n of notes) if(!n.doc && n.pendingBuf) openSession(n, n.pendingBuf);
+    renderNoteList();
+    if(current) renderActive();
   }catch(e){
     console.error('[ink] init failed', e);
-    setEngine('off', 'ink engine unavailable — retry');
+    setEngine('off', "couldn't start — retry");
   }
+}
+
+/* Build the wasm session for a note and pull its inspection payload.
+   `doc` keeps the same {pages, metadata} shape the rest of the UI reads,
+   so only the page renderer had to change. */
+function openSession(note, bytes){
+  try{
+    note.session?.dispose();
+    note.session = new ink.Session(bytes);
+    const insp = note.session.inspection();
+    note.doc = insp.document;
+    note.layout = insp.layout;
+    note.diagnostics = insp.report?.diagnostics ?? [];
+    note.inkError = null;
+    note.pendingBuf = null;   // session owns the bytes now
+  }catch(e){
+    note.session = null;
+    note.doc = null;
+    note.inkError = String(e && e.message || e);
+  }
+}
+
+/* The engine renders per page; `auto` defers to the doc's own dark-mode
+   data, so follow the viewer theme instead and pick explicitly. */
+function colorMode(){
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 }
 engineChip.addEventListener('click', () => { if(inkState === 'off') loadInk(); });
 
 /* ---------------------------------------------------------------
    State
 ----------------------------------------------------------------*/
-const notes = [];        // { id, name, size, zip, entries[], media[], meta[], pageFiles[], doc|null, inkError }
+const notes = [];        // { id, name, size, entries[], media[], meta[], pageFiles[], session, doc|null, layout, diagnostics[], inkError }
 let current = null;
 let activeTab = 'pages';
 let zoom = 1;
-
-loadInk();   // start after state decls — loadInk() reads `current` (TDZ if called earlier)
 
 /* ---------------------------------------------------------------
    Helpers
@@ -470,72 +627,27 @@ function safeStringify(obj, space=2){
   }, space);
 }
 
-function colorToCss(c){
-  if(c == null) return '#1a1a1a';
-  if(typeof c === 'string') return c;
-  if(typeof c === 'number'){
-    const n = c >>> 0;
-    const a = (n>>>24)&0xff, r = (n>>>16)&0xff, g = (n>>>8)&0xff, b = n&0xff;
-    if(a === 0){
-      if(c <= 0xFFFFFF) return `rgb(${r},${g},${b})`;
-      return `rgb(${r},${g},${b})`;
-    }
-    return `rgba(${r},${g},${b},${(a/255).toFixed(3)})`;
-  }
-  if(Array.isArray(c)){
-    let [r=0,g=0,b=0,a=255] = c; if(a<=1) a*=255;
-    return `rgba(${r|0},${g|0},${b|0},${(a/255).toFixed(3)})`;
-  }
-  if(typeof c === 'object'){
-    const r=c.r??c.red??0, g=c.g??c.green??0, b=c.b??c.blue??0;
-    let a=c.a??c.alpha??255; if(a<=1) a*=255;
-    return `rgba(${r|0},${g|0},${b|0},${(a/255).toFixed(3)})`;
-  }
-  return '#1a1a1a';
-}
-
-// Pull an {x,y,pr} list from whatever shape the parser exposes.
-function getPoints(stroke){
-  let p = stroke.points ?? stroke.pts ?? stroke.path ?? stroke.coords;
-  if(!p) return [];
-  if(ArrayBuffer.isView(p) || (Array.isArray(p) && typeof p[0] === 'number')){
-    const out = []; for(let i=0;i+1<p.length;i+=2) out.push({x:p[i], y:p[i+1]}); return out;
-  }
-  if(Array.isArray(p) && p.length && typeof p[0] === 'object'){
-    // @twango/sdocx emits uninitialized-memory garbage in two forms, and the
-    // real coordinate space is small (page pixels, ~0..2000), so a magnitude
-    // window rejects both cleanly:
-    //  1. Whole strokes (~7%) decode to huge floats (e.g. 2.8e+160, -2e+307);
-    //     every point is dropped, so the stroke vanishes rather than blowing up
-    //     the page bounds and pushing everything off-canvas.
-    //  2. A spurious leading sample carries denormal floats (e.g. 9e-271,
-    //     -8e-321). It sits at ~(0,0), so leaving it in draws a stray line from
-    //     the page corner to the first real point. `points` is sometimes one
-    //     longer than `pressures`, so a length check alone misses these.
-    // A coordinate is real iff it is 0 or |v| in [1e-3, 1e5]. Pressures track
-    // `points` from the tail, so align from the end.
-    const junk = v => !Number.isFinite(v) || Math.abs(v) > 1e5 || (v !== 0 && Math.abs(v) < 1e-3);
-    const pr = Array.isArray(stroke.pressures) ? stroke.pressures : null;
-    const prOff = pr ? p.length - pr.length : 0; // leading points with no pressure
-    const out = [];
-    for(let i = 0; i < p.length; i++){
-      const pt = p[i];
-      const x = pt.x ?? pt[0] ?? 0, y = pt.y ?? pt[1] ?? 0;
-      if(junk(x) || junk(y)) continue;
-      out.push({ x, y, pr: pr ? pr[i - prOff] : (pt.pressure ?? pt.pr ?? pt.p) });
-    }
-    return out;
-  }
-  return [];
-}
-
 /* ---------------------------------------------------------------
    File intake
 ----------------------------------------------------------------*/
 async function ingest(fileList){
+  const names = [...fileList].map(f => f.name);
+  showBusy(names.length === 1 ? `Opening ${names[0]}…` : `Opening ${names.length} files…`);
+  try{
+    await ingestInner(fileList);
+  }catch(e){
+    console.error('[ingest] failed', e);
+    alert("Couldn't open that file:\n\n" + (e && e.message || e));
+  }finally{
+    hideBusy();
+  }
+}
+
+async function ingestInner(fileList){
   for(const file of fileList){
     const note = { id: crypto.randomUUID(), name: file.name, size: file.size,
-                   entries: [], media: [], meta: [], pageFiles: [], doc: null, inkError: null };
+                   entries: [], media: [], meta: [], pageFiles: [],
+                   session: null, doc: null, layout: null, diagnostics: [], inkError: null };
     const buf = await file.arrayBuffer();
 
     // 1. Zip container (works for both .sdoc and .sdocx)
@@ -562,19 +674,41 @@ async function ingest(fileList){
       note.zipError = String(e && e.message || e);
     }
 
-    // 2. Ink parse (needs the WASM engine)
-    if(ink){
-      try{ note.doc = ink.parse(new Uint8Array(buf)); }
-      catch(e){ note.inkError = String(e && e.message || e); }
-    }else{
-      note.pendingBuf = new Uint8Array(buf); // keep for later if engine loads
-    }
+    // 2. Ink parse (needs the WASM engine). This is synchronous wasm work and
+    //    runs ~1.5s on a 10 MB note, so yield a frame first — otherwise the
+    //    busy veil never gets a chance to paint.
+    await new Promise(r => requestAnimationFrame(() => r()));
+    if(ink) openSession(note, new Uint8Array(buf));
+    else note.pendingBuf = new Uint8Array(buf); // keep for later if engine loads
 
     notes.push(note);
   }
   renderNoteList();
   if(!current && notes.length) select(notes[notes.length-1].id);
   else renderActive();
+}
+
+/* ---------------------------------------------------------------
+   Busy veil + empty-state flag
+----------------------------------------------------------------*/
+function showBusy(msg){
+  let v = $('busyVeil');
+  if(!v){
+    v = document.createElement('div');
+    v.id = 'busyVeil';
+    v.className = 'busy-veil';
+    v.innerHTML = '<div class="ring"></div><div class="msg"></div>';
+    $('view').appendChild(v);
+  }
+  v.querySelector('.msg').textContent = msg;
+  v.classList.remove('hidden');
+}
+function hideBusy(){ $('busyVeil')?.remove(); }
+
+/* Drives the CSS that hides tabs/toolrow/sidebar until there's something
+   to look at. */
+function syncEmptyState(){
+  document.body.dataset.state = notes.length ? 'loaded' : 'empty';
 }
 
 /* ---------------------------------------------------------------
@@ -587,7 +721,7 @@ function renderNoteList(){
   for(const n of notes){
     const div = document.createElement('div');
     div.className = 'note-item' + (current === n ? ' active' : '');
-    const pages = n.doc && n.doc.pages ? n.doc.pages.length : (n.pageFiles.length || '·');
+    const pages = pageCount(n) ?? '·';
     div.innerHTML = `<div class="n">${escapeHtml(n.name)}</div>
       <div class="m">${fmtBytes(n.size)} · ${pages} pg · ${n.entries.length} entries</div>`;
     div.onclick = () => select(n.id);
@@ -598,11 +732,9 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','
 
 function select(id){
   current = notes.find(n => n.id === id) || null;
+  setSidebar(false);   // picking a note is the drawer's whole job on mobile
   // late ink parse if the engine arrived after ingest
-  if(current && !current.doc && ink && current.pendingBuf){
-    try{ current.doc = ink.parse(current.pendingBuf); }
-    catch(e){ current.inkError = String(e && e.message || e); }
-  }
+  if(current && !current.doc && ink && current.pendingBuf) openSession(current, current.pendingBuf);
   renderNoteList();
   renderActive();
 }
@@ -620,7 +752,10 @@ $('tabs').addEventListener('click', e => {
 function renderActive(){
   const view = $('view');
   const pageTools = $('pageTools');
+  syncEmptyState();
   pageTools.classList.toggle('hidden', activeTab !== 'pages' || !current);
+
+  if(activeTab !== 'pages') releasePageUrls();  // don't hold page blobs off-tab
 
   if(!current){
     view.innerHTML = '';
@@ -638,23 +773,32 @@ function renderActive(){
   else if(activeTab === 'raw')   renderRaw(view);
 }
 
+/* Count what the Pages tab will actually show: the engine's visible page
+   count, which excludes Samsung Notes' trailing blank page. */
+function pageCount(n){
+  if(!n) return null;
+  if(n.session) return n.session.page_count;
+  if(n.doc && n.doc.pages) return n.doc.pages.length;
+  return n.pageFiles.length || null;
+}
 function updateCounts(){
-  $('cnt-pages').textContent = current && current.doc && current.doc.pages ? current.doc.pages.length : (current ? current.pageFiles.length : 0);
+  $('cnt-pages').textContent = pageCount(current) ?? 0;
   $('cnt-media').textContent = current ? current.media.length : 0;
   $('cnt-files').textContent = current ? current.entries.length : 0;
 }
 function updateStatus(){
   $('stFile').textContent    = current ? current.name : '—';
   $('stSize').textContent    = current ? fmtBytes(current.size) : '—';
-  $('stPages').textContent   = current && current.doc && current.doc.pages ? current.doc.pages.length : '—';
+  $('stPages').textContent   = pageCount(current) ?? '—';
   $('stEntries').textContent = current ? current.entries.length : '—';
 }
 
 /* ---------------------------------------------------------------
-   Pages (handwriting)
+   Pages (ink + imported images, rendered by the engine)
 ----------------------------------------------------------------*/
 function renderPages(view){
-  view.innerHTML = '';
+  releasePageUrls();   // before the early return, so switching to an
+  view.innerHTML = ''; // unparseable note doesn't orphan the old blobs
   const doc = current.doc;
 
   if(!doc){
@@ -680,82 +824,149 @@ function renderPages(view){
 
   const wrap = document.createElement('div');
   wrap.className = 'pages';
-  const pages = doc.pages || [];
-  $('pageInfo').textContent = `${pages.length} page${pages.length===1?'':'s'}` +
-     (doc.background ? ` · bg ${colorToCss(doc.background)}` : '');
+  // `layout.pages` is what the engine will actually render — it drops the
+  // trailing blank page Samsung Notes appends. Fall back to doc.pages if the
+  // layout is missing so the count still shows something sane.
+  const visible = current.layout?.pages ?? (doc.pages || []).map((page, i) => ({ page, source_page_index: i }));
+  const n = current.session ? current.session.page_count : visible.length;
+  const diag = current.diagnostics?.length;
+  $('pageInfo').textContent = `${n} page${n===1?'':'s'}` +
+     (visible.length !== (doc.pages||[]).length ? ` · ${(doc.pages||[]).length - visible.length} blank trailing` : '') +
+     (diag ? ` · ${diag} diagnostic${diag===1?'':'s'}` : '');
 
-  pages.forEach((page, i) => {
+  for(let i = 0; i < n; i++){
+    const entry = visible[i] || {};
+    const page = entry.page || {};
+    const strokes = (page.strokes || []).length;
+    const images  = (page.elements || []).length;
+
     const pw = document.createElement('div');
     pw.className = 'page-wrap';
-    const strokes = page.strokes || page.objects || [];
     const label = document.createElement('div');
     label.className = 'page-label';
-    label.innerHTML = `<span>page ${i+1}</span><span>${strokes.length} strokes</span>`;
-    const cv = document.createElement('canvas');
-    cv.className = 'page';
-    pw.appendChild(label); pw.appendChild(cv);
+    label.innerHTML = `<span>page ${i+1}</span>` +
+      `<span class="meta">` +
+        `<span>${strokes} strokes${images ? ` · ${images} image${images===1?'':'s'}` : ''}</span>` +
+        `<button class="save-png" title="Save this page as a PNG">Save PNG</button>` +
+      `</span>`;
+    const img = document.createElement('img');
+    img.className = 'page';
+    img.alt = `page ${i+1}`;
+    label.querySelector('.save-png').onclick = () => savePagePng(img, i);
+    // Reserve the right box before the SVG loads so the scroll height is
+    // stable and the lazy observer doesn't thrash.
+    if(page.width && page.height) img.style.aspectRatio = `${page.width} / ${page.height}`;
+    pw.appendChild(label); pw.appendChild(img);
     wrap.appendChild(pw);
-    drawPage(cv, page, doc);
-  });
+    pageObserver.observe(img);
+    img._pageIndex = i;
+    img._note = current;
+  }
   view.appendChild(wrap);
+  applyZoom(wrap);
 }
 
-function drawPage(canvas, page, doc){
-  const strokes = (page.strokes || page.objects || []).map(s => ({
-    pts: getPoints(s),
-    color: colorToCss(s.color ?? s.colour ?? s.rgb),
-    width: (s.pen_width ?? s.penWidth ?? s.width ?? 2),
-  }));
+/* Each rendered page is a 5–14 MB SVG string, so render on demand rather than
+   all at once, and hand it to the <img> as a blob URL — inlining six of those
+   into the DOM is what made large notes crawl. */
+let pageUrls = [];
+function releasePageUrls(){
+  for(const u of pageUrls) URL.revokeObjectURL(u);
+  pageUrls = [];
+  // The observer keeps a strong reference to every target it is still
+  // watching, so un-rendered pages would pile up as detached nodes on each
+  // re-render (theme flip, tab round-trip). Drop them all; renderPages
+  // re-observes the fresh <img> set.
+  pageObserver.disconnect();
+}
 
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  for(const s of strokes) for(const p of s.pts){
-    if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y;
-    if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y;
+const pageObserver = new IntersectionObserver(entries => {
+  for(const e of entries){
+    if(!e.isIntersecting) continue;
+    const img = e.target;
+    pageObserver.unobserve(img);
+    renderPageInto(img);
   }
-  let W = page.width ?? page.pageWidth ?? page.w;
-  let H = page.height ?? page.pageHeight ?? page.h;
-  const pad = 24;
-  if(!isFinite(minX)){ minX=0; minY=0; maxX=W||600; maxY=H||400; }
-  const offX = minX < 0 ? -minX : 0;
-  const offY = minY < 0 ? -minY : 0;
-  if(!W) W = maxX + offX + pad;
-  if(!H) H = maxY + offY + pad;
+}, { rootMargin: '400px 0px' });
 
-  const container = canvas.parentElement.parentElement; // .view
-  const cssW = Math.max(280, Math.min((container.clientWidth||900) - 48, 900)) * zoom;
-  const dpr = window.devicePixelRatio || 1;
-  const sc = cssW / W;
-  const cssH = H * sc;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
+function renderPageInto(img){
+  const note = img._note;
+  if(!note?.session) return;
+  try{
+    const svg = note.session.render_svg(img._pageIndex, colorMode());
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    pageUrls.push(url);
+    img.src = url;
+  }catch(err){
+    console.error('[ink] render_svg failed on page', img._pageIndex, err);
+    img.replaceWith(Object.assign(document.createElement('div'), {
+      className: 'page-error',
+      textContent: `page ${img._pageIndex + 1} failed to render — ${err && err.message || err}`,
+    }));
+  }
+}
 
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr*sc, 0, 0, dpr*sc, dpr*sc*offX, dpr*sc*offY);
+/* ---------------------------------------------------------------
+   Save a page as PNG
 
-  const bg = page.background ?? page.backgroundColor ?? doc.background;
-  ctx.fillStyle = bg != null ? colorToCss(bg) : '#f7f5ef';
-  ctx.fillRect(-offX, -offY, W, H);
+   Rasterize the page SVG at 2x its intrinsic size (1600x2262 -> 3200x4524),
+   which is enough to stay sharp when printed or zoomed. The <img> may not be
+   rendered yet if the page never scrolled into view, so force it first.
+----------------------------------------------------------------*/
+const PNG_SCALE = 2;
 
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  for(const s of strokes){
-    if(s.pts.length < 1) continue;
-    ctx.strokeStyle = s.color;
-    ctx.beginPath();
-    ctx.moveTo(s.pts[0].x, s.pts[0].y);
-    for(let i=1;i<s.pts.length;i++){
-      const p = s.pts[i];
-      ctx.lineWidth = s.width * (p.pr ? Math.max(0.3, p.pr) : 1);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-    }
-    if(s.pts.length === 1){ // single dot
-      ctx.fillStyle = s.color;
-      ctx.beginPath(); ctx.arc(s.pts[0].x, s.pts[0].y, Math.max(1,s.width/2), 0, 7); ctx.fill();
-    }
+async function savePagePng(img, i){
+  const btn = img.parentElement.querySelector('.save-png');
+  const restore = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try{
+    if(!img.src) renderPageInto(img);          // lazy page not yet rendered
+    if(!img.src) throw new Error('page has not been rendered');
+    await img.decode();
+
+    const w = (img.naturalWidth || 1600) * PNG_SCALE;
+    const h = (img.naturalHeight || 2262) * PNG_SCALE;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    // The SVG's own background rect may not cover the full canvas, and a PNG
+    // with a transparent background looks broken in most viewers.
+    ctx.fillStyle = colorMode() === 'dark' ? '#1b1a16' : '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    if(!blob) throw new Error('canvas produced no image');
+
+    const base = (current?.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
+    downloadBlob(blob, `${base} — page ${i + 1}.png`);
+  }catch(err){
+    console.error('[png] save failed', err);
+    alert(`Couldn't save page ${i + 1}:\n\n${err && err.message || err}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = restore;
+  }
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoking immediately can cancel the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/* Zoom is just the rendered width; the SVG scales without re-rendering. */
+function applyZoom(wrap){
+  const target = wrap || $('view').querySelector('.pages');
+  if(!target) return;
+  for(const pw of target.querySelectorAll('.page-wrap')){
+    pw.style.maxWidth = Math.round(860 * zoom) + 'px';
   }
 }
 
@@ -862,7 +1073,12 @@ function renderRaw(view){
     size: current.size,
     zip: { entries: manifest.length, files: manifest },
     ink: current.doc
-      ? { pages: (current.doc.pages||[]).length, parsed: current.doc }
+      ? {
+          storedPages: (current.doc.pages||[]).length,
+          visiblePages: pageCount(current),
+          diagnostics: current.diagnostics,
+          parsed: current.doc,
+        }
       : (inkState==='ready' ? { error: current.inkError || 'no pages' } : { status: 'ink engine not loaded' }),
   };
   pre.textContent = safeStringify(out);
@@ -902,12 +1118,31 @@ wireDrop($('drop'));
 ['dragover','drop'].forEach(ev => window.addEventListener(ev, e => e.preventDefault()));
 window.addEventListener('drop', e => { if(e.dataTransfer && e.dataTransfer.files.length) ingest(e.dataTransfer.files); });
 
-// zoom
-$('zoomIn').onclick  = () => { zoom = Math.min(3, zoom + 0.15); $('zoomVal').textContent = Math.round(zoom*100)+'%'; if(activeTab==='pages') renderActive(); };
-$('zoomOut').onclick = () => { zoom = Math.max(0.4, zoom - 0.15); $('zoomVal').textContent = Math.round(zoom*100)+'%'; if(activeTab==='pages') renderActive(); };
+// zoom — resizes the already-rendered SVGs, no re-render needed
+function setZoom(z){
+  zoom = z;
+  $('zoomVal').textContent = Math.round(zoom*100)+'%';
+  if(activeTab === 'pages') applyZoom();
+}
+$('zoomIn').onclick  = () => setZoom(Math.min(3, zoom + 0.15));
+$('zoomOut').onclick = () => setZoom(Math.max(0.4, zoom - 0.15));
+$('zoomReset').onclick = () => setZoom(1);
 
-// redraw pages on resize
-let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if(current && activeTab==='pages') renderActive(); }, 150); });
+/* ---------------------------------------------------------------
+   Sidebar drawer (narrow screens)
+   On desktop the sidebar is always visible and the toggle is hidden,
+   so these handlers are inert there.
+----------------------------------------------------------------*/
+const sidebarToggle = $('sidebarToggle');
+function setSidebar(open){
+  document.body.dataset.side = open ? 'open' : 'closed';
+  sidebarToggle.setAttribute('aria-expanded', String(open));
+}
+setSidebar(false);
+sidebarToggle.onclick = () => setSidebar(document.body.dataset.side !== 'open');
+$('sideScrim').onclick = () => setSidebar(false);
+
+// The SVG scales itself, so resize no longer needs a repaint.
 
 /* ---------------------------------------------------------------
    Theme (light default; persisted; falls back to system preference)
@@ -925,6 +1160,8 @@ themeToggle.onclick = () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('theme', next);
   applyTheme(next);
+  // page SVGs are baked at the old color mode — re-render them
+  if(current && activeTab === 'pages') renderActive();
 };
 
 /* ---------------------------------------------------------------
@@ -936,5 +1173,17 @@ const closeAbout = () => aboutModal.classList.add('hidden');
 $('aboutBtn').onclick = openAbout;
 $('aboutClose').onclick = closeAbout;
 aboutModal.addEventListener('click', e => { if(e.target === aboutModal) closeAbout(); });
-window.addEventListener('keydown', e => { if(e.key === 'Escape') closeAbout(); });
+window.addEventListener('keydown', e => {
+  if(e.key !== 'Escape') return;
+  closeAbout();
+  setSidebar(false);
+});
+
+syncEmptyState();   // hide the tabs/toolrow/sidebar chrome until a file lands
+
+/* Last: loadInk() repaints through renderNoteList/renderActive, which read
+   consts declared above (`$`, `notes`, `current`). Calling it any earlier is a
+   TDZ error — and one that fails silently into "engine unavailable", because
+   the throw lands in loadInk's own catch after `ink` is already assigned. */
+loadInk();
 </script>

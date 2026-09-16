@@ -7,7 +7,7 @@ import wasm from 'vite-plugin-wasm';
 // needed (that plugin's swc pass crashes on this input during `vite build`).
 export default defineConfig({
   // Relative base so the built site works from any path — a bare domain, a
-  // project subpath (e.g. /sdocx-viewer/), or a preview URL — without config.
+  // project subpath (e.g. /unsdocx/), or a preview URL — without config.
   base: './',
   plugins: [wasm()],
   optimizeDeps: {

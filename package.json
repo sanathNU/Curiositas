@@ -1,9 +1,27 @@
 {
-  "name": "sdocx-viewer",
+  "name": "unsdocx",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Client-side viewer for Samsung Notes (.sdocx/.sdoc) files — structure, media, and handwriting rendering, all in the browser.",
+  "description": "Client-side viewer for Samsung Notes (.sdocx/.sdoc) files — structure, media, and full page rendering, all in the browser.",
+  "license": "MIT",
+  "author": "Sanath Upadhyaya",
+  "homepage": "https://github.com/sanathNU/unsdocx#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sanathNU/unsdocx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sanathNU/unsdocx/issues"
+  },
+  "keywords": [
+    "samsung-notes",
+    "sdocx",
+    "sdoc",
+    "viewer",
+    "handwriting",
+    "wasm"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,7 +31,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@twango/sdocx": "0.3.3",
+    "@twango/sdocx": "0.4.0",
     "jszip": "^3.10.1"
   },
   "devDependencies": {
