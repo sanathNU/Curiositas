@@ -123,11 +123,11 @@ For vector PDF output, see
 
 [MIT](LICENSE) for the source in this repository.
 
-Note that a build is a different matter: `dist/` bundles a compiled copy of
+A build is a different matter: `dist/` bundles a compiled copy of
 `@twango/sdocx`, which is **GPL-3.0**. The MIT grant doesn't extend to that
 binary, so redistributing a build means distributing GPL-3.0 code and taking on
 its obligations. Cloning and building for yourself is unaffected; read the
-GPL-3.0 terms before shipping a build to others.
+GPL-3.0 terms before shipping a build to others. See [NOTICE](NOTICE).
 
 Samsung Notes and the `.sdocx` format are Samsung's. This is an independent,
 reverse-engineered reader with no affiliation or endorsement.

@@ -1,0 +1,28 @@
+Third-party notice
+==================
+
+The MIT license in LICENSE covers the source in this repository only.
+
+A built artifact (`dist/`, produced by `npm run build`) additionally contains
+a compiled copy of:
+
+  @twango/sdocx — https://github.com/twangodev/sdocx
+  License: GPL-3.0
+
+The MIT grant does not extend to that bundled binary. Distributing a build
+therefore means distributing GPL-3.0 code, with the obligations that carries.
+Cloning and building for your own use is unaffected; if you intend to
+redistribute a build to others, read the GPL-3.0 terms first.
+
+Other dependencies
+------------------
+
+  jszip            MIT OR GPL-3.0-or-later
+  vite             MIT
+  vite-plugin-wasm MIT
+
+Trademarks
+----------
+
+Samsung Notes and the .sdocx format belong to Samsung. This project is an
+independent, reverse-engineered reader with no affiliation or endorsement.
