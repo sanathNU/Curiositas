@@ -7,3 +7,6 @@ dist/
 # don't commit sample notes
 *.sdocx
 *.sdoc
+
+# except the small fixture used for local testing
+!test/Testing doc.sdocx
