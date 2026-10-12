@@ -1,81 +1,85 @@
-/* Curiositas landing: typography first, monochrome, gwern.net-ish. */
+/* Curiositas landing: plain academic page, Garamond, monochrome. */
 
 :root {
-  --bg: #fffff8;
-  --fg: #111;
-  --muted: #555;
-  --rule: #bbb;
-  --box: #f5f5ee;
-  --measure: 68ch;
-  font-family: "Source Serif 4", "EB Garamond", Georgia, serif;
-  font-size: 19px;
-  line-height: 1.6;
+  --bg: #fff;
+  --fg: #222;
+  --muted: #666;
+  --rule: #999;
+  --link: #1a4f8b;
+  font-family: "EB Garamond", Garamond, Georgia, serif;
+  font-size: 20px;
+  line-height: 1.5;
   color-scheme: light;
 }
 
-/* Inverted palette, not a separate theme. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #161616;
-    --fg: #e6e6e0;
-    --muted: #a0a0a0;
-    --rule: #555;
-    --box: #1f1f1f;
+    --fg: #e4e4e4;
+    --muted: #999;
+    --rule: #666;
+    --link: #8db4e2;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #161616;
-  --fg: #e6e6e0;
-  --muted: #a0a0a0;
-  --rule: #555;
-  --box: #1f1f1f;
+  --fg: #e4e4e4;
+  --muted: #999;
+  --rule: #666;
+  --link: #8db4e2;
   color-scheme: dark;
 }
 
-*, *::before, *::after { box-sizing: border-box; }
-
 body {
   margin: 0 auto;
-  padding: 0 16px;
-  max-width: calc(var(--measure) + 32px);
+  padding: 2.5rem 16px;
+  max-width: 760px;
   background: var(--bg);
   color: var(--fg);
-  overflow-wrap: break-word;
 }
 
-[lang="kn"] { font-family: "Noto Serif Kannada", serif; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--rule);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.18em;
-}
-a:hover { text-decoration-color: var(--fg); }
-
-/* ---- header / footer ---- */
-
-.site-header, .site-footer {
+header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-variant: small-caps;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  align-items: baseline;
 }
-.site-header { padding: 1.2rem 0 0; }
-.site-footer {
-  justify-content: center;
-  margin-top: 4rem;
-  padding: 1rem 0 2rem;
+
+h1 {
+  font-weight: 400;
+  font-size: 2.2rem;
+  margin: 0;
+}
+
+hr {
+  border: none;
   border-top: 1px solid var(--rule);
+  margin: 0.4rem 0 1rem;
+}
+
+h2 {
+  font-weight: 400;
+  font-size: 1.3rem;
+  margin: 2rem 0 0.6rem;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px dashed var(--rule);
+}
+
+.projects { padding-left: 1.2rem; margin: 0; }
+.projects li { margin: 0.3rem 0; }
+.projects .empty { color: var(--muted); font-style: italic; list-style: none; margin-left: -1.2rem; }
+
+footer {
+  margin-top: 3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 #theme-toggle {
   font: inherit;
-  font-size: 1.1rem;
   color: var(--muted);
   background: none;
   border: none;
@@ -83,100 +87,3 @@ a:hover { text-decoration-color: var(--fg); }
   padding: 0.2rem 0.4rem;
 }
 #theme-toggle:hover { color: var(--fg); }
-
-/* ---- title + metadata ---- */
-
-h1 {
-  font-weight: 400;
-  font-size: 2.6rem;
-  font-variant: small-caps;
-  text-align: center;
-  margin: 2rem 0 0.4rem;
-  letter-spacing: 0.02em;
-}
-
-h2 {
-  font-weight: 400;
-  font-variant: small-caps;
-  font-size: 1.4rem;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--rule);
-  margin-top: 2.5rem;
-}
-
-.page-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.2rem 1.2rem;
-  margin: 0 0 1.6rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-.page-meta div { display: flex; gap: 0.35rem; }
-.page-meta dt { font-variant: small-caps; letter-spacing: 0.04em; }
-.page-meta dd { margin: 0; }
-
-.abstract {
-  background: var(--box);
-  border: 1px solid var(--rule);
-  border-left-width: 3px;
-  padding: 0.4rem 1.2rem;
-  margin: 0 0 1.6rem;
-  font-size: 0.95rem;
-}
-
-/* ---- project index: dense list, not cards ---- */
-
-.project-index {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.project-index li {
-  padding: 0.55rem 0;
-  border-bottom: 1px dotted var(--rule);
-}
-.project-index li > a { font-weight: 600; }
-.project-index .desc { display: block; }
-.project-index .tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-.project-index .tag { font-variant: small-caps; letter-spacing: 0.04em; }
-.project-index .tag::before { content: "["; }
-.project-index .tag::after { content: "]"; }
-.project-index .empty { color: var(--muted); font-style: italic; }
-
-/* ---- sidenotes: margin notes on wide screens, inline notes on narrow ---- */
-
-.sidenote-ref {
-  font-size: 0.7em;
-  vertical-align: super;
-  line-height: 0;
-}
-.sidenote {
-  display: block;
-  margin: 0.6rem 0 0.6rem 1.2rem;
-  padding-left: 0.8rem;
-  border-left: 1px solid var(--rule);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--muted);
-}
-.sidenote-num { font-weight: 600; margin-right: 0.3rem; }
-
-@media (min-width: 1400px) {
-  main { position: relative; }
-  .sidenote {
-    position: absolute;
-    right: -18rem;
-    width: 15rem;
-    margin: -1.4rem 0 0;
-    padding-left: 0;
-    border-left: none;
-  }
-}
