@@ -1,0 +1,33 @@
+name: deploy atlas-of-crypto
+on:
+  push:
+    branches: [main]
+    paths: ["projects/atlas-of-crypto/**", ".github/workflows/atlas-of-crypto.yml"]
+  workflow_dispatch:
+
+concurrency: gh-pages-deploy   # shared group: serialize all pushes to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # plain static, no build: check the data, then stage the page without tools/ and README
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node tools/atlas.mjs check
+        working-directory: projects/atlas-of-crypto
+      - run: |
+          mkdir -p _site
+          cd projects/atlas-of-crypto
+          cp -r index.html style.css theme.js app.js data ../../_site/
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          destination_dir: atlas-of-crypto
+          keep_files: true
