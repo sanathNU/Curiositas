@@ -1,0 +1,14 @@
+# build outputs
+node_modules/
+dist/
+target/
+pkg/
+_site/
+
+# python
+.venv/
+__pycache__/
+
+# os / editor
+.DS_Store
+*.swp

@@ -1,0 +1,28 @@
+name: deploy landing
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "assets/**", ".github/workflows/_landing.yml"]
+  workflow_dispatch:
+
+concurrency: gh-pages-deploy   # shared group: serialize all pushes to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # stage only landing files so the repo's projects/ etc. don't leak into the root
+      - run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r assets _site/
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _site
+          keep_files: true
