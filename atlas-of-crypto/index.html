@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas of Theoretical Cryptography</title>
+<meta name="description" content="A map of theoretical cryptography: assumptions, primitives, proof systems and constructions as provinces, with a note for each and the results that connect them.">
+<meta property="og:title" content="Atlas of Theoretical Cryptography">
+<meta property="og:description" content="A map of theoretical cryptography and a place to wander in it.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 9l3-6 4 1 5 2-1 6-5 2-5-2z' fill='%23DCE2F7' stroke='%233E3E4A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,600&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="stack" id="stack">
+  <section class="pane map-pane" id="p-map" data-id="map" style="--i:0">
+    <div class="spine" data-goto="map"><span>Map</span></div>
+    <div class="map-wrap">
+      <svg id="map" class="nosub" role="img" aria-label="Map of theoretical cryptography: areas as countries, topics as provinces"></svg>
+      <div class="mtop">
+        <div class="crumb"><a href="../">Curiositas</a><span>·</span><a href="https://sanathnu.github.io/TechnicaInsania/">Blog</a><span class="sp"></span><button id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button></div>
+        <h1>Atlas of Theoretical Cryptography</h1>
+        <div class="row"><label for="q" class="sc muted">Find</label><input id="q" list="names" placeholder="topic or keyword" autocomplete="off"><datalist id="names"></datalist></div>
+        <div class="row">
+          <span class="br"><button class="lb" id="b-fit">fit</button></span>
+          <span class="br"><button class="lb" id="b-links" aria-pressed="false">all links</button></span>
+          <span class="br"><button class="lb" id="b-path" aria-pressed="false">path</button></span>
+          <span class="br"><button class="lb" data-open="about">about</button></span>
+        </div>
+        <div class="row pathform" id="pathform">
+          <select id="pa" aria-label="Path start"></select><span class="muted">to</span><select id="pb" aria-label="Path end"></select>
+          <span class="br"><button class="lb" id="b-trace">trace</button></span>
+        </div>
+        <div class="hint">Click a province to open its note. Scroll or pinch to zoom; keywords appear as you zoom in.</div>
+      </div>
+      <div class="legend" id="legend"><span class="t">Countries</span></div>
+      <div class="zoomctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button></div>
+    </div>
+  </section>
+</div>
+<div class="pop" id="pop" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="data/areas.js"></script>
+<script src="data/topics.js"></script>
+<script src="data/links.js"></script>
+<script src="data/keywords.js"></script>
+<script src="data/reading.js"></script>
+<script src="data/notes.js"></script>
+<script src="data/geo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
