@@ -1,0 +1,574 @@
+<script type="module" crossorigin src="./assets/index-CC-iWnq_.js"></script>
+<!--
+  unsdocx — a client-side viewer for Samsung Notes files.
+  Zip container browsing + media + metadata works with JSZip alone.
+  Handwriting rendering loads the reverse-engineered @twango/sdocx WASM parser at runtime.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>unsdocx — Samsung Notes reader</title>
+<meta name="description" content="Read Samsung Notes (.sdocx / .sdoc) files in your browser. Nothing is uploaded — the note never leaves your device." />
+<meta name="color-scheme" content="light dark" />
+<!-- Inline so there's no second request (and no /favicon.ico 404). -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23ffffff'/%3E%3Cpath d='M7 22c3-1.5 4.5-9 7-9s2 7 4.5 7S22 13 25 11' fill='none' stroke='%231a4f8b' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+<script>
+  // set theme before first paint to avoid a flash of the wrong mode
+  try{
+    var t = localStorage.getItem('theme') ||
+      ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+    document.documentElement.dataset.theme = t;
+  }catch(e){}
+</script>
+<style>
+  /* Curiositas palette (see /assets/style.css) on the system font stack:
+     San Francisco on Apple devices, Segoe UI / Roboto elsewhere. */
+  :root{
+    --paper:#fff;
+    --paper-2:#f5f5f7;
+    --fold:#ececef;
+    --text:#222;
+    --muted:#666;
+    --faint:#8a8a8e;
+    --line:#e2e2e2;
+    --line-soft:#eeeeee;
+    --accent:#1a4f8b;
+    --on-accent:#fff;
+    --ok:#3f9f5a;
+    --danger:#b3261e;
+    --shadow:rgba(0,0,0,.14);
+    --radius:8px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+    --serif: var(--sans);
+  }
+  :root[data-theme="dark"]{
+    --paper:#161616;
+    --paper-2:#1f1f1f;
+    --fold:#2a2a2a;
+    --text:#e4e4e4;
+    --muted:#999;
+    --faint:#777;
+    --line:#2c2c2c;
+    --line-soft:#232323;
+    --accent:#8db4e2;
+    --on-accent:#161616;
+    --ok:#6fbf7f;
+    --danger:#e08a80;
+    --shadow:rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--text);
+    font-family:var(--sans); font-size:17px; line-height:1.5;
+    display:flex; flex-direction:column; overflow:hidden;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline; text-underline-offset:2px}
+  code{font-family:var(--mono); font-size:.85em}
+  button{font-family:inherit}
+  ::selection{background:color-mix(in srgb, var(--accent) 22%, transparent)}
+
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex; align-items:center; gap:14px;
+    padding:0 20px; height:56px; flex:0 0 auto;
+    background:color-mix(in srgb, var(--paper) 85%, transparent);
+    backdrop-filter:saturate(180%) blur(20px); -webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid var(--line);
+  }
+  .back{font-size:15px; white-space:nowrap}
+  .brand{display:flex; align-items:baseline; gap:10px; user-select:none}
+  .brand b{font-weight:600; letter-spacing:-.01em; font-size:19px}
+  .brand .glyph{
+    font-family:var(--mono); color:var(--muted); font-size:14px;
+    border-radius:6px; padding:2px 7px; background:var(--paper-2);
+  }
+  .brand small{color:var(--faint); font-size:14px}
+  .spacer{flex:1}
+  .chip{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:14px; color:var(--muted);
+    border-radius:980px; padding:4px 11px; background:var(--paper-2);
+    cursor:default;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--faint); flex:0 0 auto}
+  .ready .dot{background:var(--ok)}
+  .off .dot{background:var(--danger)}
+  .busy .dot{background:var(--accent); animation:pulse 1s ease-in-out infinite}
+  .retry{cursor:pointer}
+  .chip.retry:hover{color:var(--text)}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    background:var(--accent); color:var(--on-accent); border:none;
+    font-weight:500; border-radius:980px; padding:7px 16px; font-size:15px;
+    transition:filter .15s;
+  }
+  .btn:hover{filter:brightness(1.12)}
+  .btn:active{filter:brightness(.92)}
+  .btn.big{font-size:18px; padding:12px 24px}
+  .link-btn{
+    appearance:none; background:none; border:none; padding:0; cursor:pointer;
+    color:var(--accent); font-size:18px;
+  }
+  .link-btn:hover{text-decoration:underline; text-underline-offset:3px}
+
+  /* ---- workspace ---- */
+  .work{flex:1; display:flex; min-height:0}
+  .side{
+    width:266px; flex:0 0 auto; border-right:1px solid var(--line);
+    background:var(--paper-2); display:flex; flex-direction:column; min-height:0;
+  }
+  .side h3{
+    margin:0; padding:16px 18px 8px;
+    font-size:14px; color:var(--muted); font-weight:600;
+  }
+  .notes{overflow:auto; padding:0 10px 14px}
+  .note-item{padding:9px 11px; border-radius:var(--radius); cursor:pointer; margin-bottom:2px}
+  .note-item:hover{background:var(--fold)}
+  .note-item.active{background:var(--accent); color:var(--on-accent)}
+  .note-item.active .m{color:inherit; opacity:.8}
+  .note-item .n{font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .note-item .m{font-size:13px; color:var(--faint); margin-top:2px}
+  .side .empty-hint{padding:10px 18px; color:var(--muted); font-size:15px}
+
+  .main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--paper)}
+  .tabs{
+    display:flex; gap:2px; padding:8px 18px; align-items:center;
+    border-bottom:1px solid var(--line); flex:0 0 auto; background:var(--paper);
+  }
+  .tab{
+    appearance:none; background:none; border:none; color:var(--muted);
+    font-weight:500; padding:6px 12px; font-size:15px; cursor:pointer;
+    border-radius:980px; display:flex; align-items:center; gap:7px;
+  }
+  .tab:hover{color:var(--text); background:var(--paper-2)}
+  .tab.active{color:var(--text); background:var(--fold)}
+  .tab .count{font-size:13px; color:var(--faint); font-variant-numeric:tabular-nums}
+  .tab.active .count{color:var(--muted)}
+  .toolrow{
+    display:flex; align-items:center; gap:12px; padding:8px 18px; flex:0 0 auto;
+    border-bottom:1px solid var(--line-soft); color:var(--muted);
+    font-size:14px; min-height:0;
+  }
+  .toolrow.hidden{display:none}
+  .zoom{display:flex; align-items:center; gap:4px; background:var(--paper-2); border-radius:980px; padding:2px}
+  .zoom button{
+    min-width:30px; height:30px; border-radius:980px; border:none;
+    background:none; color:var(--text); cursor:pointer; font-size:17px; line-height:1;
+  }
+  .zoom button:hover{background:var(--fold)}
+  .zoom span{min-width:44px; text-align:center; font-size:14px; font-variant-numeric:tabular-nums}
+
+  .view{flex:1; overflow:auto; min-height:0; position:relative}
+
+  /* ---- pages ---- */
+  .pages{padding:28px; display:flex; flex-direction:column; align-items:center; gap:30px}
+  .page-wrap{width:100%; max-width:860px}
+  .page-label{
+    font-size:14px; color:var(--faint); margin-bottom:8px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .page-label .meta{display:flex; align-items:center; gap:10px}
+  /* Save-PNG sits on the label, revealed on hover of the page but always
+     present for keyboard/touch (no hover on touch, so never hide it there). */
+  .save-png{
+    appearance:none; cursor:pointer; font-weight:500; font-size:14px;
+    background:var(--paper-2); color:var(--accent);
+    border:none; border-radius:980px; padding:4px 11px;
+    opacity:0; transition:opacity .12s, background .12s;
+  }
+  .page-wrap:hover .save-png, .save-png:focus-visible{opacity:1}
+  .save-png:hover{background:var(--fold)}
+  .save-png[disabled]{cursor:default; opacity:1; color:var(--faint)}
+  @media (hover:none){ .save-png{opacity:1} }
+
+  img.page{
+    display:block; width:100%; height:auto; border-radius:10px; background:var(--paper-2);
+    box-shadow:0 1px 2px var(--shadow), 0 14px 36px -16px var(--shadow);
+  }
+  .page-error{
+    padding:20px; border-radius:var(--radius); background:var(--paper-2);
+    font-family:var(--mono); font-size:13px; color:var(--muted);
+  }
+
+  /* ---- busy overlay (parsing a big note blocks for ~1.5s) ---- */
+  .busy-veil{
+    position:absolute; inset:0; z-index:20; display:flex; gap:14px;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:color-mix(in srgb, var(--paper) 86%, transparent);
+    font-size:15px; color:var(--muted);
+  }
+  .busy-veil .ring{
+    width:26px; height:26px; border-radius:50%;
+    border:2px solid var(--line); border-top-color:var(--accent);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){
+    .busy-veil .ring{animation-duration:2.4s}
+    .chip.busy .dot{animation:none}
+  }
+
+  /* ---- media ---- */
+  .media-grid{padding:28px; display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:18px}
+  .media-card{border-radius:12px; overflow:hidden; background:var(--paper-2)}
+  .media-card img{display:block; width:100%; height:150px; object-fit:contain; background:var(--fold)}
+  .media-card .cap{padding:10px 12px; font-size:13px; color:var(--faint)}
+  .media-card .cap b{color:var(--text); font-size:15px; font-weight:500; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px}
+  .media-card audio{width:100%}
+
+  /* ---- structure ---- */
+  .tree{padding:20px 26px; font-family:var(--mono); font-size:14px; max-width:1000px}
+  .tree table{width:100%; border-collapse:collapse}
+  .tree th{
+    text-align:left; font-family:var(--sans); color:var(--muted); font-weight:600;
+    font-size:14px; padding:8px 10px;
+    border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--paper);
+  }
+  .tree td{padding:6px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+  .tree tr:last-child td{border-bottom:none}
+  .tree tr.click{cursor:pointer}
+  .tree tr.click:hover td{background:var(--fold)}
+  .tree td.sz{color:var(--faint); text-align:right; white-space:nowrap}
+  .tag{font-family:var(--sans); font-size:13px; font-weight:500; padding:1px 8px; border-radius:980px; background:var(--paper-2); color:var(--muted)}
+  .tag.ink{color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
+  .tag.media{color:var(--text)}
+  .tag.meta{color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, transparent)}
+
+  /* ---- raw / inspector panels ---- */
+  pre.raw{
+    margin:0; padding:24px 26px; font-family:var(--mono); font-size:14px; color:var(--text);
+    white-space:pre; overflow:auto; height:100%; line-height:1.5;
+  }
+  .inspector{
+    position:absolute; right:0; top:0; bottom:0; width:min(520px,60%);
+    background:var(--paper); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; box-shadow:-24px 0 48px -30px var(--shadow);
+  }
+  .inspector header{
+    display:flex; align-items:center; gap:10px; padding:12px 16px;
+    border-bottom:1px solid var(--line); font-family:var(--mono); font-size:14px;
+  }
+  .inspector header .x{margin-left:auto; cursor:pointer; color:var(--muted); border:none; background:none; font-size:20px; line-height:1}
+  .inspector header .x:hover{color:var(--accent)}
+  .inspector .body{flex:1; overflow:auto}
+  .seg{display:flex; padding:10px 16px; border-bottom:1px solid var(--line-soft)}
+  .seg-track{display:inline-flex; gap:2px; padding:2px; border-radius:var(--radius); background:var(--paper-2)}
+  .seg button{
+    background:none; border:none; color:var(--muted); cursor:pointer;
+    padding:4px 14px; font-size:14px; font-weight:500; border-radius:6px;
+  }
+  .seg button.on{color:var(--text); background:var(--paper); box-shadow:0 1px 3px var(--shadow)}
+
+  /* ---- empty state ---- */
+  /* .view is a plain scroll box, so flex:1 alone won't stretch this;
+     min-height keeps the drop card optically centred instead of hugging
+     the top of a tall empty column. */
+  .empty{min-height:100%; display:flex; justify-content:center; padding:56px 24px 28px}
+  .hero{width:min(720px,100%); text-align:center; border-radius:20px; transition:background .15s}
+  .hero.hot{background:color-mix(in srgb, var(--accent) 7%, transparent)}
+  .hero .eyebrow{margin:0 0 6px; font-size:17px; color:var(--muted); font-weight:500}
+  .hero h1{margin:0; font-size:clamp(48px, 8vw, 72px); font-weight:600; letter-spacing:-.035em; line-height:1.04}
+  .hero .lede{margin:16px auto 0; max-width:36ch; text-wrap:balance; font-size:24px; line-height:1.38; color:var(--muted); letter-spacing:-.01em}
+  .hero .cta{display:flex; gap:24px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:28px}
+  .hero .fine{margin:16px 0 0; font-size:15px; color:var(--faint)}
+  .features{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:14px;
+    margin-top:52px; text-align:left;
+  }
+  .feature{background:var(--paper-2); border-radius:16px; padding:18px 20px}
+  .feature svg{width:24px; height:24px; color:var(--accent)}
+  .feature h2{margin:10px 0 2px; font-size:18px; font-weight:600; letter-spacing:-.01em}
+  .feature p{margin:0; font-size:15px; line-height:1.45; color:var(--muted)}
+  .hero-foot{
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px 16px;
+    margin-top:36px; padding-top:16px; border-top:1px solid var(--line-soft);
+    font-size:14px; color:var(--faint); text-align:left;
+  }
+  .hero-foot .engine-line{display:inline-flex; align-items:center; gap:7px}
+
+  .placeholder{padding:52px; text-align:center; color:var(--muted); font-size:17px; max-width:52ch; margin:0 auto}
+  .placeholder b{color:var(--text); display:block; margin-bottom:8px; font-weight:600; font-size:21px; letter-spacing:-.01em}
+  .placeholder .btn{margin-top:16px}
+
+  /* ---- status bar ---- */
+  .status{
+    flex:0 0 auto; height:34px; display:flex; align-items:center; gap:18px;
+    padding:0 18px; border-top:1px solid var(--line); background:var(--paper-2);
+    font-size:13px; color:var(--faint);
+  }
+  .status b{color:var(--text); font-weight:500}
+
+  /* ---- icon buttons (theme / about) ---- */
+  .icon-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; padding:0; cursor:pointer; font-size:17px;
+    background:transparent; color:var(--muted); border:none; border-radius:980px;
+  }
+  .icon-btn:hover{color:var(--text); background:var(--paper-2)}
+
+  /* ---- about modal ---- */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    padding:24px; background:rgba(0,0,0,.32); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .modal{
+    position:relative; width:100%; max-width:680px; max-height:88vh; overflow:auto;
+    background:var(--paper); color:var(--text); border-radius:18px;
+    padding:40px 44px; box-shadow:0 30px 80px -20px rgba(0,0,0,.45);
+  }
+  .modal .x{
+    position:absolute; top:14px; right:14px; width:30px; height:30px; border:none; border-radius:50%;
+    background:var(--paper-2); cursor:pointer; color:var(--muted); font-size:20px; line-height:1;
+  }
+  .modal .x:hover{color:var(--text); background:var(--fold)}
+  .modal .eyebrow{font-size:15px; font-weight:500; color:var(--muted); margin:0 0 4px}
+  .modal h1{font-size:32px; font-weight:600; letter-spacing:-.025em; margin:0 0 18px}
+  .modal p{font-size:17px; line-height:1.6; margin:0 0 14px; color:var(--text)}
+  .modal p.lead{font-size:20px; line-height:1.45; color:var(--muted); letter-spacing:-.01em}
+  .modal p.small{font-size:15px; color:var(--muted)}
+  .modal h2{font-size:17px; font-weight:600; color:var(--text); margin:24px 0 8px; padding-top:18px; border-top:1px solid var(--line-soft)}
+  .modal code{font-family:var(--mono); font-size:.84em; background:var(--paper-2); border-radius:5px; padding:1px 5px}
+  .modal ul{margin:0 0 14px; padding-left:20px}
+  .modal li{font-size:17px; line-height:1.6; margin-bottom:5px}
+  .hidden{display:none !important}
+
+  /* ---- nothing loaded yet ----
+     Tabs reading "PAGES 0 / MEDIA 0 / STRUCTURE 0", a zoom control, and an
+     empty status bar are all noise before a file exists. Hide the chrome and
+     let the drop target be the only thing on screen. */
+  body[data-state="empty"] .tabs,
+  body[data-state="empty"] .toolrow,
+  body[data-state="empty"] .side,
+  body[data-state="empty"] .status,
+  body[data-state="empty"] .brand,
+  body[data-state="empty"] #engineChip,
+  body[data-state="empty"] #openBtn,
+  body[data-state="empty"] .sidebar-toggle{display:none}
+  body[data-state="empty"] .topbar{border-bottom-color:transparent}
+
+  /* ---- sidebar toggle (narrow screens only) ---- */
+  .sidebar-toggle{display:none}
+
+  /* ---- narrow screens ----
+     The three-region desktop layout (sidebar | tabs+view | status) does not
+     fit a phone: the sidebar took half the width and the topbar wrapped into
+     the content. Below 860px the sidebar becomes an overlay drawer and the
+     topbar sheds everything that isn't an action. */
+  @media (max-width:860px){
+    .topbar{gap:10px; padding:0 12px; height:54px}
+    .brand small{display:none}          /* tagline */
+    .brand .glyph{display:none}
+    #engineText{display:none}           /* leave the status dot */
+    .chip{padding:4px 7px}
+    .sidebar-toggle{display:inline-flex}
+
+    .side{
+      position:absolute; z-index:30; top:0; bottom:0; left:0; width:min(290px,82vw);
+      transform:translateX(-102%); transition:transform .18s ease;
+      box-shadow:12px 0 36px -26px var(--shadow);
+    }
+    body[data-side="open"] .side{transform:none}
+    .side-scrim{
+      position:absolute; inset:0; z-index:29; background:rgba(0,0,0,.32);
+      opacity:0; pointer-events:none; transition:opacity .18s;
+    }
+    body[data-side="open"] .side-scrim{opacity:1; pointer-events:auto}
+    .work{position:relative}
+
+    /* tabs scroll horizontally rather than squeezing to unreadable */
+    .tabs{
+      padding:0 10px; gap:0; overflow-x:auto; scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:10px 10px; font-size:13px; white-space:nowrap; flex:0 0 auto}
+
+    .toolrow{padding:8px 12px; gap:8px; font-size:13px}
+    .pages{padding:14px 10px; gap:20px}
+    .page-wrap{max-width:none !important}   /* zoom sets this; ignore it here */
+    .save-png{opacity:1}                    /* no hover to reveal it on a phone */
+    .media-grid{padding:14px 10px; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px}
+    .tree{padding:12px 10px; font-size:13px}
+    .tree td, .tree th{padding:6px 6px}
+    pre.raw{padding:14px 12px; font-size:13px; white-space:pre-wrap; word-break:break-word}
+    .inspector{width:100%; border-left:none}
+    .empty{padding:32px 16px 20px}
+    .hero .lede{font-size:20px}
+    .features{margin-top:36px}
+
+    /* status bar: keep the file name, drop the rest rather than wrap */
+    .status{height:auto; min-height:28px; padding:5px 12px; gap:12px; font-size:12px}
+    .status .field.opt{display:none}
+    .modal{padding:26px 22px}
+  }
+
+  /* very narrow: the brand wordmark is the last thing to go */
+  @media (max-width:420px){
+    .brand b{font-size:18px}
+    #openBtnLabel{display:none}     /* button collapses to its icon */
+  }
+</style>
+
+<div class="topbar">
+  <button class="icon-btn sidebar-toggle" id="sidebarToggle"
+          title="Show your files" aria-label="Show your files" aria-expanded="false">☰</button>
+  <a class="back" href="../">‹ Curiositas</a>
+  <div class="brand">
+    <b>unsdocx</b>
+    <span class="glyph">.sdocx</span>
+    <small>Samsung Notes reader</small>
+  </div>
+  <div class="spacer"></div>
+  <div id="engineChip" class="chip busy retry" title="Reverse-engineered @twango/sdocx WASM parser">
+    <span class="dot"></span><span id="engineText">starting up…</span>
+  </div>
+  <button class="icon-btn" id="aboutBtn" title="About unsdocx" aria-label="About unsdocx">?</button>
+  <button class="icon-btn" id="themeToggle" title="Toggle dark mode" aria-label="Toggle dark mode">☾</button>
+  <button class="btn" id="openBtn">＋<span id="openBtnLabel">Open a note</span></button>
+  <input type="file" id="fileInput" accept=".sdocx,.sdoc,.zip" multiple class="hidden" />
+</div>
+
+<div class="work">
+  <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
+  <aside class="side">
+    <h3>Your files</h3>
+    <div class="notes" id="noteList">
+      <div class="empty-hint">No files yet. Open a <code>.sdocx</code> to begin.</div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="pages">Pages <span class="count" id="cnt-pages">0</span></button>
+      <button class="tab" data-tab="media">Media <span class="count" id="cnt-media">0</span></button>
+      <button class="tab" data-tab="structure">Structure <span class="count" id="cnt-files">0</span></button>
+      <button class="tab" data-tab="raw">Raw</button>
+    </div>
+
+    <div class="toolrow" id="pageTools">
+      <span id="pageInfo">—</span>
+      <div class="spacer" style="flex:1"></div>
+      <div class="zoom">
+        <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+        <span id="zoomVal">100%</span>
+        <button id="zoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="zoomReset" title="Reset zoom to 100%" aria-label="Reset zoom"
+                style="width:auto;padding:0 8px;font-size:13px">Reset</button>
+      </div>
+    </div>
+
+    <div class="view" id="view">
+      <div class="empty" id="emptyState">
+        <div class="hero" id="drop">
+          <p class="eyebrow">Samsung Notes reader</p>
+          <h1>unsdocx</h1>
+          <p class="lede">Read your handwritten notes in any browser. Because Samsung won't ship a viewer.</p>
+          <div class="cta">
+            <button class="btn big" id="sampleBtn">Try a sample note</button>
+            <button class="link-btn" id="openBtn2">Open a note ›</button>
+          </div>
+          <p class="fine">Or drop a <code>.sdocx</code> or <code>.sdoc</code> anywhere. Nothing is uploaded.</p>
+
+          <div class="features">
+            <div class="feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17c3-1 4.5-8 7-8s2 6 4.5 6S18 10 21 8"/><path d="M3 21h18"/></svg>
+              <h2>Pages</h2>
+              <p>Handwriting drawn to crisp SVG. Save any page as a PNG.</p>
+            </div>
+            <div class="feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg>
+              <h2>Media</h2>
+              <p>Images and audio tucked inside the note.</p>
+            </div>
+            <div class="feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M11 5v2M11 9v2M11 13v2"/></svg>
+              <h2>Structure</h2>
+              <p>Every entry in the zip, viewable as text or hex.</p>
+            </div>
+            <div class="feature">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3"/></svg>
+              <h2>Raw</h2>
+              <p>The whole parsed document, as JSON.</p>
+            </div>
+          </div>
+
+          <div class="hero-foot">
+            <span class="engine-line busy" id="heroEngine"><span class="dot"></span><span id="heroEngineText">Parser starting…</span></span>
+            <span><a href="#about">About</a> · <a href="https://github.com/sanathNU/Curiositas/tree/main/projects/sdoc-viewer" target="_blank" rel="noopener">Source</a></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <span class="field"><b id="stFile">—</b></span>
+      <span class="field opt"><b id="stSize">—</b></span>
+      <span class="field opt"><b id="stPages">—</b></span>
+      <span class="field opt"><b id="stEntries">—</b></span>
+      <div style="flex:1"></div>
+      <span id="stEngine" class="field opt">starting up</span>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop hidden" id="aboutModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="About unsdocx">
+    <button class="x" id="aboutClose" aria-label="Close">×</button>
+    <p class="eyebrow">About</p>
+    <h1>unsdocx</h1>
+    <p class="lead">A viewer for Samsung Notes files — <code>.sdocx</code> and the older
+      <code>.sdoc</code> — that runs entirely in your browser.</p>
+
+    <h2>Why it exists</h2>
+    <p>Samsung Notes can export to PDF, but only from a Samsung device with the app
+      installed. If you have the <code>.sdocx</code> and not the phone, the file is
+      effectively a brick. This opens it in a browser tab instead.</p>
+    <p>Everything happens locally. The file is <b>never uploaded</b> — no server, no
+      tracking, no external requests — which is also what makes it safe to host as a
+      plain static page.</p>
+
+    <h2>What it shows</h2>
+    <ul>
+      <li><b>Pages</b> — the full page: ink, imported slides and photos together.</li>
+      <li><b>Media</b> — images and audio embedded in the note.</li>
+      <li><b>Structure</b> — the Zip entries inside the file; click a <code>.note</code> or <code>.dat</code> to read it as text or hex.</li>
+      <li><b>Raw</b> — the parsed document, the engine's diagnostics, and the Zip manifest, as JSON.</li>
+    </ul>
+    <p>To get a page out, hover it and choose <b>Save PNG</b>. Pages are rasterized at
+      2× their size (3200 × 4524) on an opaque background, so they stay sharp when
+      printed. On a phone the button is always visible.</p>
+
+    <h2>How it works</h2>
+    <p>An <code>.sdocx</code> is a Zip container, opened here with JSZip. Pages are
+      decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      a reverse-engineered parser written in Rust and compiled to WebAssembly. It
+      renders each page to SVG, and the viewer shows that SVG as an image.</p>
+    <p>An earlier version drew the strokes onto a canvas by hand. It broke on anything
+      built from imported PDFs or slides: those pages came out blank, and one garbage
+      pen width in the file (<code>4.05e+31</code>) turned into a page-filling black
+      rectangle. Handing rendering to the engine fixed both.</p>
+    <p class="small">Each page SVG is 5–14 MB, so pages render as you scroll rather than
+      all at once. The color mode is baked into the SVG, so switching theme re-renders
+      the pages you can see.</p>
+    <p class="small">It's still a reverse-engineered parser, so a page can come out
+      incomplete. That's a parser limitation, not lost data — keep the original file,
+      and check the <b>Raw</b> tab for what the engine reported.</p>
+
+    <h2>Without a browser</h2>
+    <p class="small">To check a file parses from the terminal, <code>cargo install sdocx-cli</code>
+      and run <code>sdocx-cli your-note.sdocx</code>. For vector PDF output, see
+      <a href="https://github.com/squ1dd13/sdocx2pdf" target="_blank" rel="noopener">sdocx2pdf</a>.</p>
+
+    <h2>License</h2>
+    <p class="small">The viewer's <a href="https://github.com/sanathNU/Curiositas/tree/main/projects/sdoc-viewer" target="_blank" rel="noopener">source</a>
+      is MIT. This page also ships a compiled copy of
+      <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      which is GPL-3.0. Samsung Notes and the <code>.sdocx</code> format belong to
+      Samsung; this is an independent reader with no affiliation or endorsement.</p>
+  </div>
+</div>
+
