@@ -10,6 +10,7 @@ only itself into its subfolder of the `gh-pages` branch. Write-ups live on
 | Project | What it is | Toolchain |
 |---|---|---|
 | [atlas-of-crypto](projects/atlas-of-crypto/) | Theoretical cryptography as a map: topics as provinces, a note for each, results as links. [Live](https://sanathnu.github.io/Curiositas/atlas-of-crypto/) | plain static |
+| [sdoc-viewer](projects/sdoc-viewer/) | Client-side reader for Samsung Notes (`.sdocx` / `.sdoc`) files, with handwriting rendered by a WASM parser. [Live](https://sanathnu.github.io/Curiositas/sdoc-viewer/) | Vite + WASM |
 
 ## Local preview
 
