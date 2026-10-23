@@ -1,0 +1,32 @@
+name: deploy sdoc-viewer
+on:
+  push:
+    branches: [main]
+    paths: ["projects/sdoc-viewer/**", ".github/workflows/sdoc-viewer.yml"]
+  workflow_dispatch:
+
+concurrency: gh-pages-deploy   # shared group: serialize all pushes to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - run: npm ci
+        working-directory: projects/sdoc-viewer
+
+      - run: npm run build
+        working-directory: projects/sdoc-viewer
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: projects/sdoc-viewer/dist
+          destination_dir: sdoc-viewer
+          keep_files: true
