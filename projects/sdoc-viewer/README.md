@@ -1,7 +1,7 @@
 # unsdocx
 
 A fully client-side viewer for Samsung Notes files (`.sdocx` and older `.sdoc`) —
-because Samsung won't ship one.
+because Samsung won't ship one. [Live](https://sanathnu.github.io/Curiositas/sdoc-viewer/)
 
 Samsung Notes can export to PDF, but only from a Samsung device with the app
 installed. If you have the `.sdocx` and not the phone, the file is effectively
@@ -15,13 +15,17 @@ your machine, which is what makes it safe to host as a static site.
 
 ## Quick start
 
+From the Curiositas repo root:
+
 ```bash
+cd projects/sdoc-viewer
 npm install
 npm run dev        # http://localhost:5173, opens automatically
 ```
 
-Drop a `.sdocx` onto the page, or use the fixture committed at
-`test/Testing doc.sdocx`.
+Drop a `.sdocx` onto the page, or hit **Try a sample note** — it loads the
+fixture at `test/Testing doc.sdocx`, which Vite bundles into the build through a
+`?url` import, so the live site has it too.
 
 ## Tabs
 
@@ -82,27 +86,25 @@ npm run build      # -> dist/
 npm run preview    # serve the production build locally at :4173
 ```
 
+Pushing to `main` with changes under `projects/sdoc-viewer/` runs
+`.github/workflows/sdoc-viewer.yml`, which builds and publishes `dist/` to
+`gh-pages` under `sdoc-viewer/`. To see it inside the Curiositas layout before
+pushing, build first and then run `scripts/serve.sh` from the repo root — it
+serves a project's `dist/` when one exists.
+
 Config choices that make it host-anywhere:
 
 - `base: './'` in `vite.config.js` — assets use relative paths, so the build
-  works from a bare domain **or** a subpath (`example.com/unsdocx/`) with no
+  works from a bare domain **or** a subpath (`/Curiositas/sdoc-viewer/`) with no
   changes.
 - `build.target: 'esnext'` — the wasm-bindgen bundle needs top-level await,
   emitted natively at this target (no `vite-plugin-top-level-await`, whose swc
   pass crashes on this input).
 - The `.wasm` is emitted as a fingerprinted, fetched asset rather than inlined.
 
-### Static hosts
-
-| Host    | File           | Deploy                                       |
-|---------|----------------|----------------------------------------------|
-| Netlify | `netlify.toml` | connect the repo, or `netlify deploy --prod` |
-| Vercel  | `vercel.json`  | connect the repo, or `vercel --prod`         |
-| Any     | —              | `npm run build`, upload `dist/`              |
-
-Both config files set `Content-Type: application/wasm` on `.wasm` responses.
-Most hosts do this already; if the ink engine fails to load on some other host,
-that header is the first thing to check.
+`netlify.toml` and `vercel.json` are left over from when this was a standalone
+repo; both set `Content-Type: application/wasm` on `.wasm` responses. If the ink
+engine fails to load on some other host, that header is the first thing to check.
 
 No server, no environment variables, and no cross-origin isolation headers —
 it doesn't use threads or `SharedArrayBuffer`.
@@ -121,13 +123,20 @@ For vector PDF output, see
 
 ## License
 
-[MIT](LICENSE) for the source in this repository.
+[MIT](LICENSE) for the source in this folder.
 
 A build is a different matter: `dist/` bundles a compiled copy of
 `@twango/sdocx`, which is **GPL-3.0**. The MIT grant doesn't extend to that
-binary, so redistributing a build means distributing GPL-3.0 code and taking on
-its obligations. Cloning and building for yourself is unaffected; read the
-GPL-3.0 terms before shipping a build to others. See [NOTICE](NOTICE).
+binary, so redistributing a build — including the copy published to GitHub
+Pages — means distributing GPL-3.0 code and taking on its obligations. Cloning
+and building for yourself is unaffected; read the GPL-3.0 terms before shipping
+a build to others. See [NOTICE](NOTICE).
 
 Samsung Notes and the `.sdocx` format are Samsung's. This is an independent,
 reverse-engineered reader with no affiliation or endorsement.
+
+## History
+
+Started as a standalone repo, `sanathNU/unsdocx`. Its full commit history was
+merged into Curiositas with `git subtree`, so `git log -- projects/sdoc-viewer`
+still goes back to the first scaffold.

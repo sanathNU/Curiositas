@@ -315,7 +315,7 @@
     padding:24px; background:rgba(0,0,0,.32); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
   .modal{
-    position:relative; width:100%; max-width:600px; max-height:86vh; overflow:auto;
+    position:relative; width:100%; max-width:680px; max-height:88vh; overflow:auto;
     background:var(--paper); color:var(--text); border-radius:18px;
     padding:40px 44px; box-shadow:0 30px 80px -20px rgba(0,0,0,.45);
   }
@@ -327,6 +327,7 @@
   .modal .eyebrow{font-size:15px; font-weight:500; color:var(--muted); margin:0 0 4px}
   .modal h1{font-size:32px; font-weight:600; letter-spacing:-.025em; margin:0 0 18px}
   .modal p{font-size:17px; line-height:1.6; margin:0 0 14px; color:var(--text)}
+  .modal p.lead{font-size:20px; line-height:1.45; color:var(--muted); letter-spacing:-.01em}
   .modal p.small{font-size:15px; color:var(--muted)}
   .modal h2{font-size:17px; font-weight:600; color:var(--text); margin:24px 0 8px; padding-top:18px; border-top:1px solid var(--line-soft)}
   .modal code{font-family:var(--mono); font-size:.84em; background:var(--paper-2); border-radius:5px; padding:1px 5px}
@@ -418,7 +419,7 @@
   <div class="brand">
     <b>unsdocx</b>
     <span class="glyph">.sdocx</span>
-    <small>Samsung Notes reader — because Samsung won't ship one</small>
+    <small>Samsung Notes reader</small>
   </div>
   <div class="spacer"></div>
   <div id="engineChip" class="chip busy retry" title="Reverse-engineered @twango/sdocx WASM parser">
@@ -496,7 +497,7 @@
 
           <div class="hero-foot">
             <span class="engine-line busy" id="heroEngine"><span class="dot"></span><span id="heroEngineText">Parser starting…</span></span>
-            <span><a href="https://github.com/sanathNU/Curiositas/tree/main/projects/sdoc-viewer" target="_blank" rel="noopener">Source</a> · MIT</span>
+            <span><a href="#about">About</a> · <a href="https://github.com/sanathNU/Curiositas/tree/main/projects/sdoc-viewer" target="_blank" rel="noopener">Source</a></span>
           </div>
         </div>
       </div>
@@ -518,27 +519,55 @@
     <button class="x" id="aboutClose" aria-label="Close">×</button>
     <p class="eyebrow">About</p>
     <h1>unsdocx</h1>
-    <p>A viewer for Samsung Notes files — the <code>.sdocx</code> format (and older
-      <code>.sdoc</code>) that Samsung Notes exports. Open a file to read its
-      handwriting, browse embedded images and audio, and inspect the raw archive.</p>
-    <p>Everything runs in your browser. The file is read locally and
-      <b>never uploaded</b> — no server, no tracking, no external requests.</p>
+    <p class="lead">A viewer for Samsung Notes files — <code>.sdocx</code> and the older
+      <code>.sdoc</code> — that runs entirely in your browser.</p>
+
+    <h2>Why it exists</h2>
+    <p>Samsung Notes can export to PDF, but only from a Samsung device with the app
+      installed. If you have the <code>.sdocx</code> and not the phone, the file is
+      effectively a brick. This opens it in a browser tab instead.</p>
+    <p>Everything happens locally. The file is <b>never uploaded</b> — no server, no
+      tracking, no external requests — which is also what makes it safe to host as a
+      plain static page.</p>
 
     <h2>What it shows</h2>
     <ul>
-      <li><b>Pages</b> — handwriting and imported images, rendered to SVG by the ink engine. Hover a page to save it as a PNG.</li>
+      <li><b>Pages</b> — the full page: ink, imported slides and photos together.</li>
       <li><b>Media</b> — images and audio embedded in the note.</li>
-      <li><b>Structure</b> — the internal Zip entries; click one to inspect text/hex.</li>
-      <li><b>Raw</b> — the fully parsed document as JSON.</li>
+      <li><b>Structure</b> — the Zip entries inside the file; click a <code>.note</code> or <code>.dat</code> to read it as text or hex.</li>
+      <li><b>Raw</b> — the parsed document, the engine's diagnostics, and the Zip manifest, as JSON.</li>
     </ul>
+    <p>To get a page out, hover it and choose <b>Save PNG</b>. Pages are rasterized at
+      2× their size (3200 × 4524) on an opaque background, so they stay sharp when
+      printed. On a phone the button is always visible.</p>
 
     <h2>How it works</h2>
-    <p class="small">An <code>.sdocx</code> is a Zip container, read here with JSZip.
-      Pages are decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
-      a reverse-engineered WebAssembly parser, which rasterizes each page to SVG —
-      ink, imported slides, and photos together. It's best-effort and reverse-engineered,
-      so a page may still come out incomplete. That's a parser limitation, not lost
-      data — keep the original file.</p>
+    <p>An <code>.sdocx</code> is a Zip container, opened here with JSZip. Pages are
+      decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      a reverse-engineered parser written in Rust and compiled to WebAssembly. It
+      renders each page to SVG, and the viewer shows that SVG as an image.</p>
+    <p>An earlier version drew the strokes onto a canvas by hand. It broke on anything
+      built from imported PDFs or slides: those pages came out blank, and one garbage
+      pen width in the file (<code>4.05e+31</code>) turned into a page-filling black
+      rectangle. Handing rendering to the engine fixed both.</p>
+    <p class="small">Each page SVG is 5–14 MB, so pages render as you scroll rather than
+      all at once. The color mode is baked into the SVG, so switching theme re-renders
+      the pages you can see.</p>
+    <p class="small">It's still a reverse-engineered parser, so a page can come out
+      incomplete. That's a parser limitation, not lost data — keep the original file,
+      and check the <b>Raw</b> tab for what the engine reported.</p>
+
+    <h2>Without a browser</h2>
+    <p class="small">To check a file parses from the terminal, <code>cargo install sdocx-cli</code>
+      and run <code>sdocx-cli your-note.sdocx</code>. For vector PDF output, see
+      <a href="https://github.com/squ1dd13/sdocx2pdf" target="_blank" rel="noopener">sdocx2pdf</a>.</p>
+
+    <h2>License</h2>
+    <p class="small">The viewer's <a href="https://github.com/sanathNU/Curiositas/tree/main/projects/sdoc-viewer" target="_blank" rel="noopener">source</a>
+      is MIT. This page also ships a compiled copy of
+      <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
+      which is GPL-3.0. Samsung Notes and the <code>.sdocx</code> format belong to
+      Samsung; this is an independent reader with no affiliation or endorsement.</p>
   </div>
 </div>
 
@@ -1240,8 +1269,15 @@ themeToggle.onclick = () => {
    About modal
 ----------------------------------------------------------------*/
 const aboutModal = $('aboutModal');
-const openAbout  = () => aboutModal.classList.remove('hidden');
-const closeAbout = () => aboutModal.classList.add('hidden');
+// #about is the shareable address; replaceState so closing doesn't add history entries
+const syncAbout  = () => aboutModal.classList.toggle('hidden', location.hash !== '#about');
+const openAbout  = () => { if(location.hash !== '#about') location.hash = 'about'; else syncAbout(); };
+const closeAbout = () => {
+  if(location.hash === '#about') history.replaceState(null, '', location.pathname + location.search);
+  syncAbout();
+};
+window.addEventListener('hashchange', syncAbout);
+syncAbout();
 $('aboutBtn').onclick = openAbout;
 $('aboutClose').onclick = closeAbout;
 aboutModal.addEventListener('click', e => { if(e.target === aboutModal) closeAbout(); });
