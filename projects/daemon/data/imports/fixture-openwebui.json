@@ -1,0 +1,44 @@
+[
+  {
+    "id": "owui-fixture-001",
+    "title": "ZK Proof Compilation",
+    "chat": {
+      "model": "llama-3.1-70b",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the difference between Groth16 and PLONK proving systems?"
+        },
+        {
+          "role": "assistant",
+          "content": "Groth16 produces the smallest proofs (~128 bytes) and fastest verification, but requires a trusted setup per circuit. PLONK uses a universal trusted setup that works for any circuit up to a size bound, at the cost of larger proofs (~400 bytes) and slightly slower verification. PLONK also supports custom gates, making circuit design more flexible."
+        },
+        {
+          "role": "user",
+          "content": "Which is better for on-chain verification?"
+        },
+        {
+          "role": "assistant",
+          "content": "Groth16 is generally preferred for on-chain verification because gas costs scale with proof size and verifier computation. The ~128-byte proof and constant-time pairing check make it cheapest. PLONK is better when you need circuit flexibility or want to avoid per-circuit ceremonies."
+        }
+      ]
+    }
+  },
+  {
+    "id": "owui-fixture-002",
+    "title": "Gymnasium Wrappers",
+    "chat": {
+      "model": "mistral-7b",
+      "messages": [
+        {
+          "role": "user",
+          "content": "How do I write a custom observation wrapper in Gymnasium?"
+        },
+        {
+          "role": "assistant",
+          "content": "Subclass `gymnasium.ObservationWrapper` and override the `observation(self, obs)` method. You also need to update `self.observation_space` in `__init__` to reflect the new shape. Example: a grayscale wrapper would convert RGB arrays to single-channel and set the space accordingly."
+        }
+      ]
+    }
+  }
+]
