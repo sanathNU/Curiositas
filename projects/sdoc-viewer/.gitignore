@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.local
+.vite/
+.DS_Store
+
+# don't commit sample notes
+*.sdocx
+*.sdoc
+
+# except the small fixture used for local testing
+!test/Testing doc.sdocx
