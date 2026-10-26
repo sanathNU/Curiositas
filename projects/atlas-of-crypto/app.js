@@ -224,6 +224,8 @@ function addText(sel, lines, lh){
 function buildMap(){
   svg = d3.select("#map");
   world = svg.append("g");
+  // land underlay in the border colour: where three countries meet, any sliver between fills reads as a junction dot
+  world.append("path").attr("class","land").attr("d", GEO.coast).attr("fill-rule","evenodd");
   const gC = world.append("g");
   LEG.forEach(c => gC.append("path").attr("class","cl-fill").attr("d", GEO.clusters[c]).attr("fill", `var(--f-${c})`).attr("fill-rule","evenodd"));
   provSel = world.append("g").selectAll("path").data(NODES).join("path").attr("class","prov").attr("d", d => GEO.prov[d.id]).attr("fill-rule","evenodd")

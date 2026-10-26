@@ -113,6 +113,7 @@ select{max-width:12rem;cursor:pointer;background:var(--bg)}
 .zoomctl button{border:0;background:none;width:2rem;height:2rem;cursor:pointer;font-size:1.1rem;color:var(--fg)}
 .zoomctl button + button{border-top:1px solid var(--rule)}
 
+.land{fill:var(--cb);stroke:none;pointer-events:none}
 .cl-fill{stroke:none}
 .cl-line{fill:none;stroke:var(--cb);stroke-width:1.1;vector-effect:non-scaling-stroke;pointer-events:none}
 .coast{fill:none;stroke:var(--coast);stroke-width:1.5;vector-effect:non-scaling-stroke;pointer-events:none}
