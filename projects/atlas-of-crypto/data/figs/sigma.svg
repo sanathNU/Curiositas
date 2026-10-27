@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 150" role="img" aria-label="Schnorr's protocol: the prover sends a commitment, the verifier a random challenge, the prover a response; after Fiat–Shamir the prover computes the challenge as a hash and sends one message">
+  <defs><marker id="sigma-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="ink" d="M0 0.5L8 4L0 7.5z"/></marker></defs>
+  <!-- the challenge, and what replaces it -->
+  <rect class="acc" x="93" y="88" width="66" height="18" rx="3"/>
+  <rect class="acc" x="295" y="82" width="76" height="18" rx="3"/>
+
+  <!-- interactive -->
+  <text class="mu sc" x="126" y="16" text-anchor="middle" font-size="13">interactive</text>
+  <text class="v" x="40" y="38" text-anchor="middle">P</text>
+  <text class="mu" x="40" y="54" text-anchor="middle" font-size="13">knows <tspan class="v">x</tspan></text>
+  <text class="v" x="212" y="38" text-anchor="middle">V</text>
+  <text class="mu" x="212" y="54" text-anchor="middle" font-size="13">has <tspan class="v">y</tspan> = <tspan class="v">g</tspan><tspan class="sm v" dy="-5">x</tspan></text>
+  <path class="rl" d="M40 62V146M212 62V146"/>
+  <path class="ln" d="M44 78H208" marker-end="url(#sigma-ah)"/>
+  <path class="ln" d="M208 112H44" marker-end="url(#sigma-ah)"/>
+  <path class="ln" d="M44 138H208" marker-end="url(#sigma-ah)"/>
+  <text x="126" y="72" text-anchor="middle"><tspan class="v">a</tspan> = <tspan class="v">g</tspan><tspan class="sm v" dy="-5">r</tspan></text>
+  <text x="126" y="101" text-anchor="middle">random <tspan class="v">c</tspan></text>
+  <text x="126" y="132" text-anchor="middle"><tspan class="v">z</tspan> = <tspan class="v">r</tspan> + <tspan class="v">cx</tspan></text>
+
+  <path class="rl" d="M262 8V146"/>
+
+  <!-- after Fiat–Shamir: the prover hashes for the challenge and sends one message -->
+  <text class="mu sc" x="341" y="16" text-anchor="middle" font-size="13">Fiat–Shamir</text>
+  <text class="v" x="290" y="38" text-anchor="middle">P</text>
+  <text class="mu" x="290" y="54" text-anchor="middle" font-size="13">knows <tspan class="v">x</tspan></text>
+  <text class="v" x="398" y="38" text-anchor="middle">V</text>
+  <text class="mu" x="398" y="54" text-anchor="middle" font-size="13">has <tspan class="v">y</tspan></text>
+  <path class="rl" d="M290 62V146M398 62V146"/>
+  <text x="300" y="95"><tspan class="v">c</tspan> = <tspan class="v">H</tspan>(<tspan class="v">y</tspan>, <tspan class="v">a</tspan>)</text>
+  <path class="ln" d="M294 128H394" marker-end="url(#sigma-ah)"/>
+  <text x="344" y="122" text-anchor="middle"><tspan class="v">a</tspan>, <tspan class="v">z</tspan></text>
+</svg>

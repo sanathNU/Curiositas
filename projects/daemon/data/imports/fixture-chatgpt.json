@@ -1,0 +1,95 @@
+[
+  {
+    "title": "Lattice Reduction Strategies",
+    "conversation_id": "chatgpt-fixture-001",
+    "create_time": 1729500000,
+    "update_time": 1729503600,
+    "mapping": {
+      "root-node": {
+        "id": "root-node",
+        "parent": null,
+        "children": ["msg-1"],
+        "message": null
+      },
+      "msg-1": {
+        "id": "msg-1",
+        "parent": "root-node",
+        "children": ["msg-2"],
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "content_type": "text",
+            "parts": ["Explain the LLL algorithm for lattice basis reduction. What makes it polynomial time?"]
+          },
+          "metadata": {}
+        }
+      },
+      "msg-2": {
+        "id": "msg-2",
+        "parent": "msg-1",
+        "children": ["msg-3"],
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {
+            "content_type": "text",
+            "parts": ["The Lenstra-Lenstra-Lovász (LLL) algorithm reduces a lattice basis in polynomial time by iteratively enforcing two conditions: size reduction (each basis vector's projections onto previous vectors are small) and the Lovász condition (successive Gram-Schmidt vectors don't decrease too rapidly). The key insight is that each swap operation strictly increases a potential function, bounding the total number of swaps at O(n² log B) where B bounds the input."]
+          },
+          "metadata": {"model_slug": "gpt-4o"}
+        }
+      },
+      "msg-3": {
+        "id": "msg-3",
+        "parent": "msg-2",
+        "children": [],
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "content_type": "text",
+            "parts": ["How does BKZ improve on LLL?"]
+          },
+          "metadata": {}
+        }
+      }
+    }
+  },
+  {
+    "title": "Rust Trait Bounds",
+    "conversation_id": "chatgpt-fixture-002",
+    "create_time": 1729600000,
+    "update_time": 1729600000,
+    "mapping": {
+      "root": {
+        "id": "root",
+        "parent": null,
+        "children": ["q1"],
+        "message": null
+      },
+      "q1": {
+        "id": "q1",
+        "parent": "root",
+        "children": ["a1"],
+        "message": {
+          "author": {"role": "user"},
+          "content": {
+            "content_type": "text",
+            "parts": ["When should I use `impl Trait` vs explicit generics in Rust?"]
+          },
+          "metadata": {}
+        }
+      },
+      "a1": {
+        "id": "a1",
+        "parent": "q1",
+        "children": [],
+        "message": {
+          "author": {"role": "assistant"},
+          "content": {
+            "content_type": "text",
+            "parts": ["Use `impl Trait` for simple cases where callers don't need to name the type. Use explicit generics when callers need turbofish syntax or the type appears in multiple positions."]
+          },
+          "metadata": {"model_slug": "gpt-4"}
+        }
+      }
+    }
+  }
+]

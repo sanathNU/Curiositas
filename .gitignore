@@ -12,3 +12,6 @@ __pycache__/
 # os / editor
 .DS_Store
 *.swp
+
+# claude code
+.claude/

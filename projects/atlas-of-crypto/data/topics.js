@@ -236,7 +236,7 @@ const NODES = [
 {id:"garbled",l:"Garbled circuits",c:"X",k:1,
  s:"Encrypt a circuit gate by gate so it can be evaluated on one input and nothing else leaks. The idea generalizes to randomized encodings, which push cryptography down to NC⁰.",
  r:["Yao garbling from one-way functions","Cryptography in NC⁰ (Applebaum–Ishai–Kushilevitz)","Formal garbling schemes (Bellare–Hoang–Rogaway)"],
- p:["Yao, How to generate and exchange secrets (1986)","Applebaum–Ishai–Kushilevitz, Cryptography in NC⁰ (2004)","Bellare–Hoang–Rogaway, Foundations of garbled circuits (2012)"]},
+ p:["Yao, How to generate and exchange secrets (1986)","Applebaum–Ishai–Kushilevitz, Cryptography in NC⁰ (2004)","Kolesnikov–Schneider, Improved garbled circuit: free XOR gates and applications (2008)","Bellare–Hoang–Rogaway, Foundations of garbled circuits (2012)","Zahur–Rosulek–Evans, Two halves make a whole (2015)"]},
 {id:"fhe",l:"Fully homomorphic encryption",c:"X",k:1,
  s:"Compute arbitrary functions on encrypted data. Noise grows with each operation; bootstrapping refreshes it by homomorphically evaluating decryption, which requires circular security.",
  r:["Gentry's bootstrapping blueprint","FHE from standard LWE (Brakerski–Vaikuntanathan)","Leveled schemes (BGV, GSW) and approximate arithmetic (CKKS)"],

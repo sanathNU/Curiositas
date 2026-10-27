@@ -4,7 +4,8 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
   --bg:#ffffff; --fg:#111111; --mid:#555555; --faint:#9a9a9a; --rule:#d4d4d4; --hl:#f1f1f1; --mark:#fff1a8;
   --sea:#DCE2F7; --coast:#3E3E4A; --cb:#4A4A55; --pb:rgba(60,60,72,.45); --lab:#111118; --labsub:#2a2a33; --halo:rgba(255,255,255,.6);
-  --f-F:#D3C6E2; --f-A:#F2BCB8; --f-I:#CDE7C8; --f-P:#BBD0EA; --f-K:#F8D7A8; --f-T:#D9DECF; --f-S:#C4E4E0; --f-X:#E8C8DD; --f-B:#F2E4C2;
+  /* country colours, assigned in legend order (LEG in areas.js) */
+  --f-0:#D3C6E2; --f-1:#F2BCB8; --f-2:#CDE7C8; --f-3:#BBD0EA; --f-4:#F8D7A8; --f-5:#D9DECF; --f-6:#C4E4E0; --f-7:#E8C8DD; --f-8:#F2E4C2;
   --spine:40px; --pw:min(36rem,100vw);
   --serif:"EB Garamond",Garamond,"Times New Roman",serif;
 }
@@ -12,13 +13,13 @@
   :root:not([data-theme="light"]){
     --bg:#141414; --fg:#e4e4e4; --mid:#a8a8a8; --faint:#6e6e6e; --rule:#353535; --hl:#232323; --mark:#5a4d14;
     --sea:#161a24; --coast:#a7adbb; --cb:#8c92a0; --pb:rgba(200,205,215,.28); --lab:#f0f0f0; --labsub:#cfd2d8; --halo:rgba(0,0,0,.45);
-    --f-F:#463c5a; --f-A:#5a3636; --f-I:#344b37; --f-P:#33445b; --f-K:#5a472b; --f-T:#43473e; --f-S:#2d504d; --f-X:#523a4c; --f-B:#544c35;
+    --f-0:#463c5a; --f-1:#5a3636; --f-2:#344b37; --f-3:#33445b; --f-4:#5a472b; --f-5:#43473e; --f-6:#2d504d; --f-7:#523a4c; --f-8:#544c35;
   }
 }
 :root[data-theme="dark"]{
   --bg:#141414; --fg:#e4e4e4; --mid:#a8a8a8; --faint:#6e6e6e; --rule:#353535; --hl:#232323; --mark:#5a4d14;
   --sea:#161a24; --coast:#a7adbb; --cb:#8c92a0; --pb:rgba(200,205,215,.28); --lab:#f0f0f0; --labsub:#cfd2d8; --halo:rgba(0,0,0,.45);
-  --f-F:#463c5a; --f-A:#5a3636; --f-I:#344b37; --f-P:#33445b; --f-K:#5a472b; --f-T:#43473e; --f-S:#2d504d; --f-X:#523a4c; --f-B:#544c35;
+  --f-0:#463c5a; --f-1:#5a3636; --f-2:#344b37; --f-3:#33445b; --f-4:#5a472b; --f-5:#43473e; --f-6:#2d504d; --f-7:#523a4c; --f-8:#544c35;
 }
 html,body{height:100%}
 *,*::before,*::after{box-sizing:inherit}
@@ -59,6 +60,20 @@ select{max-width:12rem;cursor:pointer;background:var(--bg)}
 .note h2{font-size:1.2rem;line-height:1.3;font-weight:600;color:var(--fg);margin:2.1rem 0 .55rem;letter-spacing:-.003em}
 .note .eq{margin:1.3rem 0 1.4rem;padding:.15rem 0;text-align:center;font-size:1.1rem;line-height:1.7;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
 .note .eq sub,.note .eq sup{line-height:0}
+/* figures (data/figs/<id>.svg): line art in the text colour, one accent --acc (the topic's country colour) */
+.note .fig{margin:-.3rem 0 1.6rem}
+.note .fig svg{display:block;width:100%;max-width:420px;height:auto;margin:0 auto;font-family:var(--serif);font-size:15px;font-variant-numeric:lining-nums;overflow:visible}
+.note .fig text{fill:currentColor}
+.note .fig .ln{fill:none;stroke:currentColor;stroke-width:1.1}
+.note .fig .rl{fill:none;stroke:var(--faint);stroke-width:1;stroke-dasharray:2 3}
+.note .fig .ink{fill:currentColor}
+.note .fig .acc{fill:var(--acc)}
+.note .fig .mu{fill:var(--mid)}
+.note .fig .v{font-style:italic}
+.note .fig .sm{font-size:10.5px}
+.note .fig .an{font-size:12.5px;font-style:italic;fill:var(--mid)}
+.note .fig figcaption{max-width:420px;margin:.75rem auto 0;font-size:.82rem;line-height:1.45;color:var(--mid)}
+.note .fig figcaption sub,.note .fig figcaption sup{line-height:0}
 .note .body p{margin:0 0 .9rem;hyphens:auto}
 .note ul.leads{margin:.2rem 0;padding-left:1.15rem}
 .note ul.leads li{margin:.3rem 0}
@@ -113,6 +128,7 @@ select{max-width:12rem;cursor:pointer;background:var(--bg)}
 .zoomctl button{border:0;background:none;width:2rem;height:2rem;cursor:pointer;font-size:1.1rem;color:var(--fg)}
 .zoomctl button + button{border-top:1px solid var(--rule)}
 
+.land{fill:var(--cb);stroke:none;pointer-events:none}
 .cl-fill{stroke:none}
 .cl-line{fill:none;stroke:var(--cb);stroke-width:1.1;vector-effect:non-scaling-stroke;pointer-events:none}
 .coast{fill:none;stroke:var(--coast);stroke-width:1.5;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -136,10 +152,10 @@ select{max-width:12rem;cursor:pointer;background:var(--bg)}
 .spoke{stroke:var(--coast);stroke-width:.5;vector-effect:non-scaling-stroke;opacity:.45;pointer-events:none}
 .pathline{fill:none;stroke:var(--fg);stroke-width:3;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round;pointer-events:none}
 .pathdot{fill:var(--bg);stroke:var(--fg);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
-text.lm{font-family:var(--serif);font-weight:600;fill:var(--lab);text-anchor:middle;cursor:pointer;paint-order:stroke;stroke:var(--halo);stroke-width:3px;stroke-linejoin:round}
+text.lm{font-family:var(--serif);font-weight:600;fill:var(--lab);text-anchor:middle;cursor:pointer;paint-order:stroke;stroke:var(--halo);stroke-width:.22em;stroke-linejoin:round}
 text.lm:hover{text-decoration:underline}
 text.lm.hid{opacity:0;pointer-events:none}
-text.ls{font-family:var(--serif);fill:var(--labsub);text-anchor:middle;cursor:pointer;paint-order:stroke;stroke:var(--halo);stroke-width:2.5px;stroke-linejoin:round}
+text.ls{font-family:var(--serif);fill:var(--labsub);text-anchor:middle;cursor:pointer;paint-order:stroke;stroke:var(--halo);stroke-width:.3em;stroke-linejoin:round}
 text.ls:hover{text-decoration:underline}
 #map.nosub .ls,#map.nosub .spoke{display:none}
 text.lm.open{text-decoration:underline;text-decoration-thickness:2px}

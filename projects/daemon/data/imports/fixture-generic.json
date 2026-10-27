@@ -1,0 +1,45 @@
+[
+  {
+    "id": "generic-fixture-001",
+    "title": "WASM Memory Model",
+    "model": "deepseek-coder-v2",
+    "created": 1729700000,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How does WebAssembly handle memory differently from native code?"
+      },
+      {
+        "role": "assistant",
+        "content": "WASM uses a linear memory model — a single contiguous, resizable byte array. Unlike native code, WASM can't access arbitrary memory addresses; all access is bounds-checked against the linear memory size. There's no separate stack/heap distinction visible to WASM; the runtime manages the call stack separately. This sandboxing is why WASM is memory-safe by default."
+      }
+    ]
+  },
+  {
+    "id": "generic-fixture-002",
+    "title": "Policy Gradient Variance",
+    "model": "qwen2.5-72b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a reinforcement learning expert."
+      },
+      {
+        "role": "user",
+        "content": "Why do vanilla policy gradient methods have high variance?"
+      },
+      {
+        "role": "assistant",
+        "content": "The REINFORCE estimator uses Monte Carlo returns which are noisy because they sum many stochastic rewards. Each trajectory samples different states and actions, so the gradient estimate varies wildly between episodes. Baselines (like a value function) reduce variance without introducing bias by subtracting a state-dependent term from the return."
+      },
+      {
+        "role": "user",
+        "content": "Does GAE help with this?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes. Generalized Advantage Estimation (GAE) interpolates between high-bias/low-variance (TD) and low-bias/high-variance (MC) using the lambda parameter. At lambda=0 it's pure TD (one-step), at lambda=1 it's full MC. In practice, lambda around 0.95 gives a good bias-variance tradeoff."
+      }
+    ]
+  }
+]

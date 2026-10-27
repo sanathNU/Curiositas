@@ -1,4 +1,5 @@
-// Countries on the map: id -> name and vertical band (layout hint only).
+// Countries on the map. y = vertical band for the generator (low = top of the map), x = optional
+// horizontal nudge, y: null = no home region (its topics settle beside what they link to).
 const CL = {
   X:{n:"Advanced constructions",y:0},
   S:{n:"Proof systems",y:1},

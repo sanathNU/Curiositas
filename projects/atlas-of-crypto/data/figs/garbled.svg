@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 168" role="img" aria-label="A garbled AND gate: two random labels on each wire, and a shuffled table of four encrypted rows, of which the evaluator's labels open one">
+  <!-- held labels and the opened row -->
+  <rect class="acc" x="36" y="48" width="22" height="19" rx="3"/>
+  <rect class="acc" x="12" y="121" width="22" height="19" rx="3"/>
+  <rect class="acc" x="148" y="71" width="22" height="19" rx="3"/>
+  <rect class="acc" x="240" y="94" width="134" height="24"/>
+  <rect class="acc" x="397" y="96" width="21" height="19" rx="3"/>
+
+  <!-- the gate: wires a, b in, c out -->
+  <path class="ln" d="M8 70H72M8 118H72M142 94H194"/>
+  <path class="ln" d="M72 50H98A44 44 0 0 1 98 138H72Z"/>
+  <text class="sc" x="102" y="98" text-anchor="middle" font-size="13">and</text>
+
+  <!-- two labels per wire, one per bit -->
+  <text class="mu" x="16" y="63"><tspan class="v">A</tspan><tspan class="sm" dy="-6">0</tspan></text>
+  <text x="40" y="63"><tspan class="v">A</tspan><tspan class="sm" dy="-6">1</tspan></text>
+  <text x="16" y="136"><tspan class="v">B</tspan><tspan class="sm" dy="-6">0</tspan></text>
+  <text class="mu" x="40" y="136"><tspan class="v">B</tspan><tspan class="sm" dy="-6">1</tspan></text>
+  <text x="152" y="86"><tspan class="v">C</tspan><tspan class="sm" dy="-6">0</tspan></text>
+  <text class="mu" x="176" y="86"><tspan class="v">C</tspan><tspan class="sm" dy="-6">1</tspan></text>
+
+  <!-- garble: the whole gate becomes the table -->
+  <defs><marker id="garbled-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="ink" d="M0 0.5L8 4L0 7.5z"/></marker></defs>
+  <path class="ln" d="M106 44C140 12 248 10 292 26" marker-end="url(#garbled-ah)"/>
+  <text class="an" x="196" y="35" text-anchor="middle">garble</text>
+
+  <!-- the garbled table F̃: each output label under the matching input labels, rows shuffled -->
+  <text class="v" x="307" y="35" text-anchor="middle" font-size="17">F̃</text>
+  <path class="ln" d="M240 46h134v96H240zM240 70h134M240 94h134M240 118h134"/>
+  <text class="mu" x="307" y="63" text-anchor="middle">E(<tspan class="v">A</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">, E(</tspan><tspan class="v">B</tspan><tspan class="sm" dy="-6">1</tspan><tspan dy="6">, </tspan><tspan class="v">C</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">))</tspan></text>
+  <text class="mu" x="307" y="87" text-anchor="middle">E(<tspan class="v">A</tspan><tspan class="sm" dy="-6">1</tspan><tspan dy="6">, E(</tspan><tspan class="v">B</tspan><tspan class="sm" dy="-6">1</tspan><tspan dy="6">, </tspan><tspan class="v">C</tspan><tspan class="sm" dy="-6">1</tspan><tspan dy="6">))</tspan></text>
+  <text x="307" y="111" text-anchor="middle">E(<tspan class="v">A</tspan><tspan class="sm" dy="-6">1</tspan><tspan dy="6">, E(</tspan><tspan class="v">B</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">, </tspan><tspan class="v">C</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">))</tspan></text>
+  <text class="mu" x="307" y="135" text-anchor="middle">E(<tspan class="v">A</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">, E(</tspan><tspan class="v">B</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">, </tspan><tspan class="v">C</tspan><tspan class="sm" dy="-6">0</tspan><tspan dy="6">))</tspan></text>
+  <text class="an" x="307" y="160" text-anchor="middle">rows in random order</text>
+
+  <!-- the one row the evaluator can open -->
+  <path class="ln" d="M378 106H387"/>
+  <path class="ink" d="M393 106l-7-3.5v7z"/>
+  <text x="401" y="111"><tspan class="v">C</tspan><tspan class="sm" dy="-6">0</tspan></text>
+</svg>
