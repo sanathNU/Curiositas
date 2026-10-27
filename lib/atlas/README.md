@@ -28,7 +28,8 @@ node lib/atlas/tools/atlas.mjs generate projects/<atlas> [--seed N]  # redraw th
 node lib/atlas/tools/atlas.mjs build    projects/<atlas> [--link]    # check, then write the page to dist/
 ```
 
-`build` copies the engine and the data into `dist/`, which is what the deploy workflow publishes.
+`build` copies the engine and the data into `dist/` and inlines the figures into `dist/figs.js`; that
+folder is what the deploy workflow publishes.
 With `--link` it symlinks them instead, so edits to the engine or the data show up on refresh;
 `scripts/serve.sh` serves `dist/` when it exists. `dist/` is gitignored.
 
@@ -44,10 +45,30 @@ An atlas folder holds `data/` with these files, loaded as plain scripts in this 
 | `links.js` | `EDGES` | Results between topics: `[from, to, label]`. |
 | `keywords.js` | `SUB` | Words shown around each topic when zoomed in (`[]` is fine). |
 | `reading.js` | `RES`, `SHORT`, `NOTES` | Free texts (`[kind, title, url]`), short names, and which texts each note cites. |
-| `notes.js` | `BODY` | Note bodies: optional defining identity `i`, text `t`. In note text (and in `SITE.about` and `begin`), `{{Wikipedia title\|text}}` links out, `[[id\|text]]` links to another note, and paragraphs are separated by `\n\n`. |
+| `notes.js` | `BODY` | Note bodies: optional defining identity `i`, figure caption `f`, text `t`. In note text (and in `SITE.about` and `begin`), `{{Wikipedia title\|text}}` links out, `[[id\|text]]` links to another note, and paragraphs are separated by `\n\n`. |
 | `geo.js` | `GEO` | Map geometry, written by `generate`; do not edit by hand. |
 
-Colours go to countries in `LEG` order; a tenth country starts the palette again.
+Colours go to countries in `LEG` order; a tenth country starts the palette again. `data/figs/` may also
+hold one SVG per note, described next.
+
+## Figures
+
+A note can have one figure, `data/figs/<id>.svg`, drawn under its identity with the caption `f` from
+`notes.js`. `build` strips comments and indentation and inlines every figure into `dist/figs.js`, so
+after editing a figure, build again: `--link` does not pick it up on refresh.
+
+- The viewBox is `0 0 420 <height>`, so text is the same size in every figure. The default text size is
+  15; the figure shows at 420 px on a desktop and scales down on a phone.
+- Colours come from classes in `style.css`, never from the file, so dark mode works: `ln` line, `rl` faint
+  dashed rule, `ink` filled in the text colour (arrowheads), `acc` filled in the topic's country colour,
+  `mu` muted text, `an` small italic annotation, `v` italic (variables), `sm` small (scripts, placed with
+  `dy`). Text without a class is in the text colour.
+- Ids start with `<id>-` (markers, say), so they stay unique when several notes are open. No scripts or
+  event handlers. An `aria-label` on the `<svg>` says what it shows.
+- The note's text must stand without the figure. The caption only says how to read the picture: what is
+  shaded, what a symbol stands for.
+
+`check` enforces the size, the ids, the label, the caption and the rule against scripts.
 
 ## The map
 
