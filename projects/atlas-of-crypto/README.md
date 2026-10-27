@@ -19,8 +19,9 @@ data/
   links.js        results between topics: [from, to, label]
   keywords.js     words shown around a topic when zoomed in
   reading.js      free texts and which notes cite them
-  notes.js        note bodies: defining identity + text
+  notes.js        note bodies: defining identity, figure caption, text
   geo.js          map geometry, generated; do not edit by hand
+  figs/           optional figure per note: <id>.svg
 dist/             built page (gitignored)
 ```
 
@@ -49,3 +50,11 @@ With `--link`, edits to the data or the engine show up on refresh.
    deploy workflow checks too, before it builds.
 
 The same goes for any change to labels, keywords, links or countries: edit the data, then regenerate.
+
+## Adding a figure
+
+1. Draw `data/figs/<id>.svg` by the rules in the [engine README](../../lib/atlas/README.md#figures):
+   420 wide, colours from classes, ids starting with the topic id.
+2. Add its caption as `f` to the note in `data/notes.js`: how to read the picture, not a repeat of the text.
+3. `node lib/atlas/tools/atlas.mjs build projects/atlas-of-crypto --link` again (figures are inlined at
+   build time), then look at the note in light, dark and at phone width.

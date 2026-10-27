@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 166" role="img" aria-label="Five hybrids for four PRG outputs, switched from pseudorandom to uniform one block at a time; each step costs at most epsilon, so the whole walk costs at most four epsilon">
+  <text class="an" x="136" y="19" text-anchor="middle">four PRG outputs, one switched per step</text>
+
+  <!-- uniform blocks: hybrid H_i has its first i blocks uniform -->
+  <rect class="acc" x="44" y="56" width="46" height="26"/>
+  <rect class="acc" x="44" y="82" width="92" height="26"/>
+  <rect class="acc" x="44" y="108" width="138" height="26"/>
+  <rect class="acc" x="44" y="134" width="184" height="26"/>
+  <path class="ln" d="M44 30h184v130H44zM44 56h184M44 82h184M44 108h184M44 134h184M90 30v130M136 30v130M182 30v130"/>
+
+  <!-- hybrid names -->
+  <text x="10" y="48"><tspan class="v">H</tspan><tspan class="sm" dy="4">0</tspan></text>
+  <text x="10" y="74"><tspan class="v">H</tspan><tspan class="sm" dy="4">1</tspan></text>
+  <text x="10" y="100"><tspan class="v">H</tspan><tspan class="sm" dy="4">2</tspan></text>
+  <text x="10" y="126"><tspan class="v">H</tspan><tspan class="sm" dy="4">3</tspan></text>
+  <text x="10" y="152"><tspan class="v">H</tspan><tspan class="sm" dy="4">4</tspan></text>
+
+  <!-- blocks: G(s) on a fresh seed, or uniform U -->
+  <text x="67" y="48" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="113" y="48" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="159" y="48" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="205" y="48" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text class="v" x="67" y="74" text-anchor="middle">U</text>
+  <text x="113" y="74" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="159" y="74" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="205" y="74" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text class="v" x="67" y="100" text-anchor="middle">U</text>
+  <text class="v" x="113" y="100" text-anchor="middle">U</text>
+  <text x="159" y="100" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text x="205" y="100" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text class="v" x="67" y="126" text-anchor="middle">U</text>
+  <text class="v" x="113" y="126" text-anchor="middle">U</text>
+  <text class="v" x="159" y="126" text-anchor="middle">U</text>
+  <text x="205" y="126" text-anchor="middle"><tspan class="v">G</tspan>(<tspan class="v">s</tspan>)</text>
+  <text class="v" x="67" y="152" text-anchor="middle">U</text>
+  <text class="v" x="113" y="152" text-anchor="middle">U</text>
+  <text class="v" x="159" y="152" text-anchor="middle">U</text>
+  <text class="v" x="205" y="152" text-anchor="middle">U</text>
+
+  <!-- p_i: how often the distinguisher outputs 1 on H_i; each hop between neighbours is at most ε -->
+  <text x="242" y="48"><tspan class="v">p</tspan><tspan class="sm" dy="4">0</tspan></text>
+  <text x="242" y="74"><tspan class="v">p</tspan><tspan class="sm" dy="4">1</tspan></text>
+  <text x="242" y="100"><tspan class="v">p</tspan><tspan class="sm" dy="4">2</tspan></text>
+  <text x="242" y="126"><tspan class="v">p</tspan><tspan class="sm" dy="4">3</tspan></text>
+  <text x="242" y="152"><tspan class="v">p</tspan><tspan class="sm" dy="4">4</tspan></text>
+  <path class="ln" d="M264 45c12 4 12 18 0 22M264 71c12 4 12 18 0 22M264 97c12 4 12 18 0 22M264 123c12 4 12 18 0 22"/>
+  <text x="280" y="60">≤ <tspan class="v">ε</tspan></text>
+  <text x="280" y="86">≤ <tspan class="v">ε</tspan></text>
+  <text x="280" y="112">≤ <tspan class="v">ε</tspan></text>
+  <text x="280" y="138">≤ <tspan class="v">ε</tspan></text>
+
+  <!-- the whole walk -->
+  <path class="ln" d="M312 43q6 0 6 6v40q0 6 6 6q-6 0-6 6v40q0 6-6 6"/>
+  <text x="332" y="91">|<tspan class="v">p</tspan><tspan class="sm" dy="4">0</tspan><tspan dy="-4"> − </tspan><tspan class="v">p</tspan><tspan class="sm" dy="4">4</tspan><tspan dy="-4">|</tspan></text>
+  <text x="332" y="113">≤ 4<tspan class="v">ε</tspan></text>
+</svg>
