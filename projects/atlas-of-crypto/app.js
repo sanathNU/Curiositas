@@ -215,7 +215,12 @@ document.addEventListener("mouseover", e => { const a = e.target.closest("a[data
 document.addEventListener("mouseout", e => { if (e.target.closest("a[data-pop]")) hidePop(); });
 
 /* ---------- map ---------- */
-let svg, world, zoom, curK = 1, provSel, edgeSel, lmSel, lsSel, spokeSel, pathG;
+let svg, world, zoom, curK = 1, homeK = 1, provSel, edgeSel, lmSel, lsSel, spokeSel, pathG;
+/* On-screen label sizes in px for topics (lm) and keywords (ls); `map` is the size the generator lays
+   them out at. Zoomed out, labels hold `min` px (growing on the map) until the whole map is in view,
+   then shrink with it. Zoomed in, they follow the map up to `max` px and settle there. */
+const LABEL = { lm: {map: 11, min: 10.5, max: 15}, ls: {map: 7.2, min: 8.5, max: 12} };
+const labelSize = (o, k) => Math.min(o.max, Math.max(o.map * k, o.min * Math.min(1, k / homeK))) / k;
 function wrap(s, w){ const out = []; let line = ""; s.split(" ").forEach(word => { if ((line + " " + word).trim().length > w && line){ out.push(line); line = word; } else line = (line + " " + word).trim(); }); if (line) out.push(line); return out; }
 function addText(sel, lines, lh){
   sel.each(function(d){ const t = d3.select(this), L = lines(d), off = -(L.length - 1) / 2;
@@ -257,8 +262,8 @@ function buildMap(){
 
   zoom = d3.zoom().scaleExtent([0.4, 6]).on("zoom", e => {
     world.attr("transform", e.transform); curK = e.transform.k;
-    lmSel.attr("font-size", Math.max(11, 10.5 / curK));
-    lsSel.attr("font-size", 7.2);
+    lmSel.attr("font-size", labelSize(LABEL.lm, curK));
+    lsSel.attr("font-size", labelSize(LABEL.ls, curK));
     svg.classed("nosub", curK < 1.25);
     declutter();
   });
@@ -274,13 +279,13 @@ function viewW(){
   return w;
 }
 function mapCenter(){ if (!svg) return null; const el = svg.node(), t = d3.zoomTransform(el); return t.invert([viewW() / 2, el.clientHeight / 2]); }
+const boxK = (x0, y0, x1, y1, maxK = 4) => Math.min(viewW() / (x1 - x0), svg.node().clientHeight / (y1 - y0), maxK);
 function fitBox(x0, y0, x1, y1, animate, maxK = 4){
-  const el = svg.node(), W = viewW(), H = el.clientHeight;
-  const k = Math.min(W / (x1 - x0), H / (y1 - y0), maxK);
+  const W = viewW(), H = svg.node().clientHeight, k = boxK(x0, y0, x1, y1, maxK);
   const t = d3.zoomIdentity.translate(W/2 - k*(x0+x1)/2, H/2 - k*(y0+y1)/2).scale(k);
   (animate && !reduceMotion ? svg.transition().duration(500) : svg).call(zoom.transform, t);
 }
-function fit(animate){ fitBox(-20, -10, GEO.W + 20, GEO.H + 10, animate); }
+function fit(animate){ const b = [-20, -10, GEO.W + 20, GEO.H + 10]; homeK = boxK(...b); fitBox(...b, animate); }
 function flyTo(id){ const [x, y] = GEO.main[id]; fitBox(x - 170, y - 110, x + 170, y + 110, true, 2.2); }
 function markOpen(){
   if (!provSel) return;
