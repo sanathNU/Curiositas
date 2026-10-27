@@ -9,7 +9,7 @@ only itself into its subfolder of the `gh-pages` branch. Write-ups live on
 
 | Project | What it is | Toolchain |
 |---|---|---|
-| [atlas-of-crypto](projects/atlas-of-crypto/) | Theoretical cryptography as a map: topics as provinces, a note for each, results as links. [Live](https://sanathnu.github.io/Curiositas/atlas-of-crypto/) | plain static |
+| [atlas-of-crypto](projects/atlas-of-crypto/) | Theoretical cryptography as a map: topics as provinces, a note for each, results as links. [Live](https://sanathnu.github.io/Curiositas/atlas-of-crypto/) | data for the [atlas engine](lib/atlas/) (static, Node tools) |
 | [sdoc-viewer](projects/sdoc-viewer/) | Client-side reader for Samsung Notes (`.sdocx` / `.sdoc`) files, with handwriting rendered by a WASM parser. [Live](https://sanathnu.github.io/Curiositas/sdoc-viewer/) | Vite + WASM |
 
 ## Local preview
@@ -18,7 +18,12 @@ only itself into its subfolder of the `gh-pages` branch. Write-ups live on
 scripts/serve.sh        # http://localhost:8000/Curiositas/
 ```
 
-Mirrors the Pages layout with symlinks, so edits show up on refresh.
+Mirrors the Pages layout with symlinks, so edits show up on refresh. A project with a `dist/`
+is served from there; for an atlas, run `node lib/atlas/tools/atlas.mjs build projects/<atlas> --link`
+once first.
+
+Code shared between projects lives in `lib/`: [`lib/atlas`](lib/atlas/) is the engine behind every
+atlas, and its README covers making a new one.
 
 ## Adding a project
 
