@@ -4,7 +4,8 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
   --bg:#ffffff; --fg:#111111; --mid:#555555; --faint:#9a9a9a; --rule:#d4d4d4; --hl:#f1f1f1; --mark:#fff1a8;
   --sea:#DCE2F7; --coast:#3E3E4A; --cb:#4A4A55; --pb:rgba(60,60,72,.45); --lab:#111118; --labsub:#2a2a33; --halo:rgba(255,255,255,.6);
-  --f-F:#D3C6E2; --f-A:#F2BCB8; --f-I:#CDE7C8; --f-P:#BBD0EA; --f-K:#F8D7A8; --f-T:#D9DECF; --f-S:#C4E4E0; --f-X:#E8C8DD; --f-B:#F2E4C2;
+  /* country colours, assigned in legend order (LEG in areas.js) */
+  --f-0:#D3C6E2; --f-1:#F2BCB8; --f-2:#CDE7C8; --f-3:#BBD0EA; --f-4:#F8D7A8; --f-5:#D9DECF; --f-6:#C4E4E0; --f-7:#E8C8DD; --f-8:#F2E4C2;
   --spine:40px; --pw:min(36rem,100vw);
   --serif:"EB Garamond",Garamond,"Times New Roman",serif;
 }
@@ -12,13 +13,13 @@
   :root:not([data-theme="light"]){
     --bg:#141414; --fg:#e4e4e4; --mid:#a8a8a8; --faint:#6e6e6e; --rule:#353535; --hl:#232323; --mark:#5a4d14;
     --sea:#161a24; --coast:#a7adbb; --cb:#8c92a0; --pb:rgba(200,205,215,.28); --lab:#f0f0f0; --labsub:#cfd2d8; --halo:rgba(0,0,0,.45);
-    --f-F:#463c5a; --f-A:#5a3636; --f-I:#344b37; --f-P:#33445b; --f-K:#5a472b; --f-T:#43473e; --f-S:#2d504d; --f-X:#523a4c; --f-B:#544c35;
+    --f-0:#463c5a; --f-1:#5a3636; --f-2:#344b37; --f-3:#33445b; --f-4:#5a472b; --f-5:#43473e; --f-6:#2d504d; --f-7:#523a4c; --f-8:#544c35;
   }
 }
 :root[data-theme="dark"]{
   --bg:#141414; --fg:#e4e4e4; --mid:#a8a8a8; --faint:#6e6e6e; --rule:#353535; --hl:#232323; --mark:#5a4d14;
   --sea:#161a24; --coast:#a7adbb; --cb:#8c92a0; --pb:rgba(200,205,215,.28); --lab:#f0f0f0; --labsub:#cfd2d8; --halo:rgba(0,0,0,.45);
-  --f-F:#463c5a; --f-A:#5a3636; --f-I:#344b37; --f-P:#33445b; --f-K:#5a472b; --f-T:#43473e; --f-S:#2d504d; --f-X:#523a4c; --f-B:#544c35;
+  --f-0:#463c5a; --f-1:#5a3636; --f-2:#344b37; --f-3:#33445b; --f-4:#5a472b; --f-5:#43473e; --f-6:#2d504d; --f-7:#523a4c; --f-8:#544c35;
 }
 html,body{height:100%}
 *,*::before,*::after{box-sizing:inherit}
