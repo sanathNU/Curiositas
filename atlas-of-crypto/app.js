@@ -9,11 +9,11 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").match
 const narrow = () => window.matchMedia("(max-width:760px)").matches;
 const wikiURL = t => "https://en.wikipedia.org/wiki/" + encodeURIComponent(t.replace(/ /g, "_"));
 const wikiSearch = t => "https://en.wikipedia.org/w/index.php?search=" + encodeURIComponent(t);
-const eprintSearch = t => "https://eprint.iacr.org/search?q=" + encodeURIComponent(t);
 const scholar = t => "https://scholar.google.com/scholar?q=" + encodeURIComponent(t);
 const ext = (href, text) => `<a class="ext" href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
 const int = id => `<a class="int" data-open="${id}" data-pop="${id}" href="#${id}">${esc(byId[id].l)}</a>`;
 const firstSentence = s => s.split(/(?<=\.)\s/)[0];
+const fill = c => `var(--f-${LEG.indexOf(c) % 9})`;   // style.css has nine country colours, given out in legend order
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /* ---------- notes ---------- */
@@ -23,11 +23,12 @@ function paper(p){
   const [ , au, ti, yr] = m;
   return `<li><a href="${scholar((ti || "") + " " + au)}" target="_blank" rel="noopener noreferrer" title="Search Google Scholar">${esc(au)}${ti ? `, <i>${esc(ti)}</i>` : ""}</a>, ${yr}</li>`;
 }
-function md(text){
-  return text.split("\n\n").map(p => "<p>" + p
+function inline(text){
+  return text
     .replace(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/g, (m, id, tx) => `<a class="int" data-open="${id}" data-pop="${id}" href="#${id}">${tx || esc(byId[id].l)}</a>`)
-    .replace(/\{\{([^|}]+)(?:\|([^}]+))?\}\}/g, (m, ti, tx) => ext(wikiURL(ti), tx || ti)) + "</p>").join("");
+    .replace(/\{\{([^|}]+)(?:\|([^}]+))?\}\}/g, (m, ti, tx) => ext(wikiURL(ti), tx || ti));
 }
+function md(text){ return text.split("\n\n").map(p => "<p>" + inline(p) + "</p>").join(""); }
 function cite(p){
   const m = p.match(/^(.*?)(?:, (.*))? \((\d{4})\)$/);
   if (!m) return `<li>${esc(p)}</li>`;
@@ -38,12 +39,13 @@ function noteHTML(id){
   if (id === "about") return aboutHTML();
   if (id.startsWith("path~")) return pathHTML(id);
   const n = byId[id], B = BODY[id] || {t: esc(n.s)};
-  const books = (NOTES[n.id] || []).filter(k => RES[k] && !["cs7810","l4","l7"].includes(k)).map(k => ext(RES[k][2], esc(RES[k][1])));
+  const books = (NOTES[n.id] || []).filter(k => RES[k] && !(SITE.hideReading || []).includes(k)).map(k => ext(RES[k][2], esc(RES[k][1])));
   const leads = outs[n.id].map(e => `<li>${int(e.t)} <span class="via">— ${esc(e.l)}</span></li>`).join("");
   const back = ins[n.id].map(e => `<a class="bl" data-open="${e.s}" href="#${e.s}"><b>${esc(byId[e.s].l)}</b><span class="via">${esc(e.l)}</span><span class="snip">${esc(firstSentence(byId[e.s].s))}</span></a>`).join("");
   return `<h1>${esc(n.l)}</h1>
     <p class="meta">${plural(n.deg, "connection")} · <a data-fly="${n.id}">show on map</a></p>
     ${B.i ? `<div class="eq">${B.i}</div>` : ""}
+    ${FIG[id] ? `<figure class="fig" style="--acc:${fill(n.c)}">${FIG[id]}<figcaption>${inline(B.f || "")}</figcaption></figure>` : ""}
     <div class="body">${md(B.t)}</div>
     ${leads ? `<h2>Where it leads</h2><ul class="leads">${leads}</ul>` : ""}
     <h2>Further reading</h2>
@@ -53,16 +55,14 @@ function noteHTML(id){
 }
 function aboutHTML(){
   return `<h1>About this atlas</h1>
-    <p class="meta">A map of theoretical cryptography and a place to wander in it</p>
+    <p class="meta">${esc(SITE.tagline)}</p>
     <div class="body">
-    <p>The map shows cryptography as a continent. Each country is an area (assumptions, primitives, proof systems, constructions, and the neighbouring parts of theoretical computer science), and each province is a topic. Provinces that touch are related, and the faint lines between them are results: an arrow from one topic to another means the first is used to build, prove or understand the second.</p>
-    <p>Every topic has a note. A note opens with the topic’s defining identity when it has one, such as IP = PSPACE for ${int("ip")} or (<b>A</b>, <b>A</b><i>s</i> + <i>e</i>) ≈<sub>c</sub> (<b>A</b>, <i>u</i>) for ${int("lattices")}, then explains the idea in a few paragraphs, with links to the Wikipedia article for each named concept and to other notes. It ends with where the topic leads, free texts and the papers that matter, and <i>Links to this note</i>: the topics that build into it.</p>
+    ${md(SITE.about)}
     <p>Notes open beside each other, like pages laid out on a desk. A link inside a note opens its target to the right and closes anything further along; clicking the map adds a note at the end. When the desk is full, older notes fold into spines at the left, and clicking a spine brings one back. The address bar records the whole stack, so a copied link reopens the same set of notes.</p>
     <h2>On the map</h2>
     <p><b>Find</b> searches topics and keywords, opens the note and flies the map there. <b>All links</b> draws every connection at once. <b>Path</b> traces the shortest chain of results between two topics and opens it as a note. Zooming in reveals keywords around each topic, and clicking one opens its topic with the word marked. Hovering a province or a link previews it. Where the map is crowded, labels of smaller topics step aside; zoom in and they return.</p>
     <p>Keys: <span class="sc">/</span> focuses Find, <span class="sc">Esc</span> closes the last note, <span class="sc">F</span> fits the map.</p>
-    <h2>Where to begin</h2>
-    <p>A natural route runs from ${int("avgcase")} through ${int("owf")} and ${int("prg")} to ${int("zk")}; another climbs from ${int("lattices")} through ${int("rlwe")} to ${int("fhe")}, ${int("io")} and ${int("folding")}. Or pick a province that looks interesting and follow its links.</p>
+    ${SITE.begin ? `<h2>Where to begin</h2>${md(SITE.begin)}` : ""}
     </div>`;
 }
 
@@ -215,7 +215,12 @@ document.addEventListener("mouseover", e => { const a = e.target.closest("a[data
 document.addEventListener("mouseout", e => { if (e.target.closest("a[data-pop]")) hidePop(); });
 
 /* ---------- map ---------- */
-let svg, world, zoom, curK = 1, provSel, edgeSel, lmSel, lsSel, spokeSel, pathG;
+let svg, world, zoom, curK = 1, homeK = 1, provSel, edgeSel, lmSel, lsSel, spokeSel, pathG;
+/* On-screen label sizes in px for topics (lm) and keywords (ls); `map` is the size the generator lays
+   them out at. Zoomed out, labels hold `min` px (growing on the map) until the whole map is in view,
+   then shrink with it. Zoomed in, they follow the map up to `max` px and settle there. */
+const LABEL = { lm: {map: 11, min: 10.5, max: 15}, ls: {map: 7.2, min: 8.5, max: 12} };
+const labelSize = (o, k) => Math.min(o.max, Math.max(o.map * k, o.min * Math.min(1, k / homeK))) / k;
 function wrap(s, w){ const out = []; let line = ""; s.split(" ").forEach(word => { if ((line + " " + word).trim().length > w && line){ out.push(line); line = word; } else line = (line + " " + word).trim(); }); if (line) out.push(line); return out; }
 function addText(sel, lines, lh){
   sel.each(function(d){ const t = d3.select(this), L = lines(d), off = -(L.length - 1) / 2;
@@ -224,8 +229,10 @@ function addText(sel, lines, lh){
 function buildMap(){
   svg = d3.select("#map");
   world = svg.append("g");
+  // land underlay in the border colour: where three countries meet, any sliver between fills reads as a junction dot
+  world.append("path").attr("class","land").attr("d", GEO.coast).attr("fill-rule","evenodd");
   const gC = world.append("g");
-  LEG.forEach(c => gC.append("path").attr("class","cl-fill").attr("d", GEO.clusters[c]).attr("fill", `var(--f-${c})`).attr("fill-rule","evenodd"));
+  LEG.forEach(c => gC.append("path").attr("class","cl-fill").attr("d", GEO.clusters[c]).attr("fill", fill(c)).attr("fill-rule","evenodd"));
   provSel = world.append("g").selectAll("path").data(NODES).join("path").attr("class","prov").attr("d", d => GEO.prov[d.id]).attr("fill-rule","evenodd")
     .attr("tabindex", -1).attr("aria-label", d => d.l);
   const gL = world.append("g");
@@ -255,8 +262,8 @@ function buildMap(){
 
   zoom = d3.zoom().scaleExtent([0.4, 6]).on("zoom", e => {
     world.attr("transform", e.transform); curK = e.transform.k;
-    lmSel.attr("font-size", Math.max(11, 10.5 / curK));
-    lsSel.attr("font-size", 7.2);
+    lmSel.attr("font-size", labelSize(LABEL.lm, curK));
+    lsSel.attr("font-size", labelSize(LABEL.ls, curK));
     svg.classed("nosub", curK < 1.25);
     declutter();
   });
@@ -272,13 +279,13 @@ function viewW(){
   return w;
 }
 function mapCenter(){ if (!svg) return null; const el = svg.node(), t = d3.zoomTransform(el); return t.invert([viewW() / 2, el.clientHeight / 2]); }
+const boxK = (x0, y0, x1, y1, maxK = 4) => Math.min(viewW() / (x1 - x0), svg.node().clientHeight / (y1 - y0), maxK);
 function fitBox(x0, y0, x1, y1, animate, maxK = 4){
-  const el = svg.node(), W = viewW(), H = el.clientHeight;
-  const k = Math.min(W / (x1 - x0), H / (y1 - y0), maxK);
+  const W = viewW(), H = svg.node().clientHeight, k = boxK(x0, y0, x1, y1, maxK);
   const t = d3.zoomIdentity.translate(W/2 - k*(x0+x1)/2, H/2 - k*(y0+y1)/2).scale(k);
   (animate && !reduceMotion ? svg.transition().duration(500) : svg).call(zoom.transform, t);
 }
-function fit(animate){ fitBox(-20, -10, GEO.W + 20, GEO.H + 10, animate); }
+function fit(animate){ const b = [-20, -10, GEO.W + 20, GEO.H + 10]; homeK = boxK(...b); fitBox(...b, animate); }
 function flyTo(id){ const [x, y] = GEO.main[id]; fitBox(x - 170, y - 110, x + 170, y + 110, true, 2.2); }
 function markOpen(){
   if (!provSel) return;
@@ -323,7 +330,7 @@ function drawPath(pid, fly){
 /* ---------- controls ---------- */
 function buildControls(){
   const lg = document.getElementById("legend");
-  lg.insertAdjacentHTML("beforeend", LEG.map(c => `<button data-cl="${c}"><i style="background:var(--f-${c})"></i><span>${esc(SEC[c])}</span></button>`).join(""));
+  lg.insertAdjacentHTML("beforeend", LEG.map(c => `<button data-cl="${c}"><i style="background:${fill(c)}"></i><span>${esc(SEC[c])}</span></button>`).join(""));
   lg.addEventListener("click", e => {
     const b = e.target.closest("[data-cl]"); if (!b) return;
     const pts = NODES.filter(n => n.c === b.dataset.cl).map(n => GEO.main[n.id]);
