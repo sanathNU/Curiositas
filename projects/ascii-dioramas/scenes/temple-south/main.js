@@ -2,6 +2,7 @@
 // Dravidian granite, coconut palms, polychrome gopuram sculpture. Portrait 9:16.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const W = 1080, HH = 1920, DURATION = 24;
 const COLS = 200, ROWS = 178;
@@ -610,74 +611,13 @@ async function main() {
   buildGrass(scene); buildFlowers(scene); buildTrees(scene, barkTex);
   buildGopurams(scene); buildGhatSteps(scene); buildPrakarams(scene); buildDiyas(scene); buildNandi(scene); buildLotus(scene); buildRocks(scene);
 
-  // chital deer (spotted deer) from primitives
-  const deerMat = tag(new THREE.MeshBasicMaterial({ color: '#c4854a' }), CLS.fox);
-  const deerWhite = tag(new THREE.MeshBasicMaterial({ color: '#e8dcc8' }), CLS.fox);
-  const deerDk = tag(new THREE.MeshBasicMaterial({ color: '#4a3020' }), CLS.fox);
-  const deer = new THREE.Group();
-  // body
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(.18, .55, 6, 10), deerMat);
-  body.rotation.z = Math.PI / 2; body.position.set(0, .55, 0); deer.add(body);
-  // spots (white dots on body)
-  for (let i = 0; i < 14; i++) {
-    const spot = new THREE.Mesh(new THREE.SphereGeometry(.035, 4, 3), deerWhite);
-    const a = rnd() * 6.28, r = .12 + rnd() * .06;
-    spot.position.set((rnd() - .5) * .5, .55 + Math.sin(a) * r, Math.cos(a) * r);
-    deer.add(spot);
-  }
-  // belly (lighter underside)
-  const belly = new THREE.Mesh(new THREE.CapsuleGeometry(.14, .4, 5, 8), deerWhite);
-  belly.rotation.z = Math.PI / 2; belly.position.set(0, .48, 0); deer.add(belly);
-  // neck
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(.08, .1, .35, 6), deerMat);
-  neck.position.set(.32, .78, 0); neck.rotation.z = -.5; deer.add(neck);
-  // head group (will animate)
-  const headGroup = new THREE.Group(); headGroup.position.set(.42, .9, 0);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.1, 6, 5), deerMat);
-  head.scale.set(1.1, .9, .9); headGroup.add(head);
-  // snout
-  const snout = new THREE.Mesh(new THREE.CylinderGeometry(.04, .06, .12, 5), deerMat);
-  snout.rotation.z = Math.PI / 2; snout.position.set(.1, -.02, 0); headGroup.add(snout);
-  // nose
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(.025, 4, 3), deerDk);
-  nose.position.set(.16, -.03, 0); headGroup.add(nose);
-  // ears
-  for (const s of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(.04, .12, 4), deerMat);
-    ear.position.set(-.02, .1, s * .08); ear.rotation.z = s * .3; ear.rotation.x = s * .15;
-    headGroup.add(ear);
-  }
-  // antlers (small, Y-branched)
-  for (const s of [-1, 1]) {
-    const main = new THREE.Mesh(new THREE.CylinderGeometry(.012, .018, .22, 4), deerDk);
-    main.position.set(-.02, .15, s * .06); main.rotation.z = s * .2; main.rotation.x = -.15;
-    headGroup.add(main);
-    const branch = new THREE.Mesh(new THREE.CylinderGeometry(.008, .012, .1, 3), deerDk);
-    branch.position.set(-.04, .24, s * .08); branch.rotation.z = s * .6;
-    headGroup.add(branch);
-  }
-  deer.add(headGroup);
-  // legs
-  const legPositions = [[-.2, 0, .1], [-.2, 0, -.1], [.2, 0, .1], [.2, 0, -.1]];
-  const legs = [];
-  for (const [lx, , lz] of legPositions) {
-    const legGroup = new THREE.Group(); legGroup.position.set(lx, .42, lz);
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(.025, .035, .25, 5), deerMat);
-    upper.position.y = -.12; legGroup.add(upper);
-    const lower = new THREE.Mesh(new THREE.CylinderGeometry(.018, .025, .2, 5), deerMat);
-    lower.position.y = -.32; legGroup.add(lower);
-    const hoof = new THREE.Mesh(new THREE.SphereGeometry(.022, 4, 3), deerDk);
-    hoof.position.y = -.42; hoof.scale.y = .6; legGroup.add(hoof);
-    deer.add(legGroup); legs.push(legGroup);
-  }
-  // tail
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(.03, .15, 4), deerWhite);
-  tail.position.set(-.35, .6, 0); tail.rotation.z = 1.2; deer.add(tail);
-  deer.scale.setScalar(1.6);
-  deer.traverse(o => { o.castShadow = true; o.frustumCulled = false; });
+  // fox model tinted chital-brown for the temple grounds
+  const fg = await new GLTFLoader().loadAsync('assets/models/Fox.glb');
+  const deer = fg.scene; deer.scale.setScalar(.015);
+  deer.traverse(o => { if (o.isSkinnedMesh) { o.frustumCulled = false; o.castShadow = true; o.material = tag(new THREE.MeshBasicMaterial({ map: o.material.map, color: new THREE.Color(1.1, .85, .55) }), CLS.fox); } });
   scene.add(deer);
-  // deer animation state
-  const deerAnim = { headBob: 0, legPhase: 0 };
+  const deerMix = new THREE.AnimationMixer(deer);
+  deerMix.clipAction(fg.animations.find(a => /walk/i.test(a.name))).play();
 
   // drifting flower petals — kumkum red
   const petals = new THREE.InstancedMesh(new THREE.PlaneGeometry(.09, .09), tag(new THREE.MeshBasicMaterial({ color: new THREE.Color(1.4, .3, .15), side: THREE.DoubleSide }), CLS.flower), 120);
@@ -712,22 +652,9 @@ async function main() {
     const dir = phase < span ? 1 : -1;
     const nx = -tg.z, nz = tg.x;
     const dx = p.x + nx * DEER_OFFSET, dz = p.z + nz * DEER_OFFSET;
-    deer.position.set(dx, samp(fY, dx, dz) + .02, dz);
-    deer.rotation.y = Math.atan2(tg.x * dir, tg.z * dir) - Math.PI / 2;
-    // leg walk — gentle steps
-    const walkSpeed = 3.0;
-    for (let i = 0; i < 4; i++) {
-      const offset = i < 2 ? 0 : Math.PI;
-      const side = i % 2 === 0 ? 0 : Math.PI * .5;
-      legs[i].rotation.x = Math.sin(t * walkSpeed + offset + side) * .12;
-    }
-    // head bob — mostly grazing, slow
-    const graze = Math.sin(t * .4) * .5 + .5;
-    const dip = graze > .7 ? (graze - .7) / .3 * .35 : 0;
-    headGroup.rotation.z = -.1 + dip;
-    headGroup.position.y = .9 - dip * .12;
-    // tail flick — gentle
-    tail.rotation.x = Math.sin(t * 1.8) * .1;
+    deer.position.set(dx, samp(fY, dx, dz) + .1, dz);
+    deer.rotation.y = Math.atan2(tg.x * dir, tg.z * dir);
+    deerMix.update(dt);
     petalS.forEach((s, i) => {
       const k = fract(s[0] + t * (.015 + s[3] * .01));
       const x = -14 + k * 28 + Math.sin(t * .5 + s[1] * 9) * .4, z = -20 + s[2] * 34;
