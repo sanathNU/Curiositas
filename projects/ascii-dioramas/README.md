@@ -84,9 +84,8 @@ The sweep period is ~24 seconds.
 - **harbour / torii**: Fox.glb (animated GLTF, `MeshBasicMaterial` to avoid NaN
   in the half-float target). Walks a CatmullRom path with ping-pong traversal
   and delta-time animation.
-- **temple-south**: Procedural chital deer built from Three.js primitives
-  (capsule body, spotted coat, Y-branched antlers, four-leg walk cycle, grazing
-  head-bob, tail flick). No external model dependency.
+- **temple-south**: Fox.glb tinted chital-brown, walking on grass beside the
+  path (offset from the stone steps). Same model, warm colour multiply.
 
 ## Adding a new scene
 
@@ -97,6 +96,16 @@ The sweep period is ~24 seconds.
 4. `node serve.mjs <name>`
 
 The serve script auto-discovers scenes by looking for `scenes/<name>/main.js`.
+
+## Inspiration
+
+This started as a fun side project after seeing ASCII diorama demos circulating
+online — in particular the work by
+[@HelloVyom](https://x.com/HelloVyom/status/2116539949080272964) and
+[@dhruvtwt\_](https://x.com/dhruvtwt_/status/2117295437535482001)
+([repo](https://github.com/JDhruv14/ascii-diorama)). The rendering technique
+(Three.js → glyph shader → tilt-shift) comes from a shared Claude Code skill
+template; these scenes build on it with different subjects and props.
 
 ## Assets and licences
 

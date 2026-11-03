@@ -305,7 +305,7 @@ function buildTrees(scene, barkTex) {
       }
     }
   }
-  const barkMat = tag(new THREE.MeshLambertMaterial({ map: barkTex, color: '#d8d0c4' }), CLS.wood);
+  const barkMat = tag(new THREE.MeshLambertMaterial({ map: barkTex, color: '#bfb8ae' }), CLS.wood);
   if (trunks.length) { const trunk = new THREE.Mesh(mergeGeometries(trunks), barkMat); trunk.castShadow = true; scene.add(trunk); }
   const g = new THREE.PlaneGeometry(.3, .24);
   const count = leaves.length / 6, im = new THREE.InstancedMesh(g, tag(new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), CLS.leaf, leafWind), count);
@@ -572,7 +572,7 @@ void main(){
   vec2 gv = g-cell, dx = dFdx(g), dy = dFdy(g);
   float ink = smoothstep(.12,.78,textureGrad(uAtlas,vec2((gl+gv.x)/uN,1.-gv.y),dx/uN,dy).r);
   vec3 blur = grade(textureLod(uScene,vUv,lodC+1.2).rgb);
-  outColor = vec4(mix(blur*.14,col*1.45+.015,ink),1.);
+  outColor = vec4(mix(blur*.18,col*1.42+.015,ink),1.);
 }`;
 const tiltFrag = /* glsl */`
 precision highp float;
