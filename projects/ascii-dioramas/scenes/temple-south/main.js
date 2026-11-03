@@ -673,7 +673,7 @@ async function main() {
   // tail
   const tail = new THREE.Mesh(new THREE.ConeGeometry(.03, .15, 4), deerWhite);
   tail.position.set(-.35, .6, 0); tail.rotation.z = 1.2; deer.add(tail);
-  deer.scale.setScalar(3.0);
+  deer.scale.setScalar(1.6);
   deer.traverse(o => { o.castShadow = true; o.frustumCulled = false; });
   scene.add(deer);
   // deer animation state
@@ -702,29 +702,32 @@ async function main() {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), ascii); quad.frustumCulled = false;
   const post = new THREE.Scene(); post.add(quad); const postCam = new THREE.Camera();
 
-  const dummy = new THREE.Object3D(), SPEED = .55, DEER_U0 = .18, DEER_U1 = .82;
+  const dummy = new THREE.Object3D(), SPEED = .25, DEER_U0 = .35, DEER_U1 = .72;
+  const DEER_OFFSET = 3.5;
   function drawFrame(t, dt) {
     time.value = t; placeCamera(t);
     const span = DEER_U1 - DEER_U0, phase = ((t * SPEED / pathLen) % (2 * span));
     const u = phase < span ? DEER_U0 + phase : DEER_U1 - (phase - span);
     const p = pathCurve.getPointAt(clamp(u)), tg = pathCurve.getTangentAt(clamp(u));
     const dir = phase < span ? 1 : -1;
-    deer.position.set(p.x, samp(fY, p.x, p.z) + .02, p.z);
-    deer.rotation.y = Math.atan2(tg.x * dir, tg.z * dir);
-    // leg walk cycle
-    const walkSpeed = 6.5;
+    const nx = -tg.z, nz = tg.x;
+    const dx = p.x + nx * DEER_OFFSET, dz = p.z + nz * DEER_OFFSET;
+    deer.position.set(dx, samp(fY, dx, dz) + .02, dz);
+    deer.rotation.y = Math.atan2(tg.x * dir, tg.z * dir) - Math.PI / 2;
+    // leg walk — gentle steps
+    const walkSpeed = 3.0;
     for (let i = 0; i < 4; i++) {
       const offset = i < 2 ? 0 : Math.PI;
       const side = i % 2 === 0 ? 0 : Math.PI * .5;
-      legs[i].rotation.x = Math.sin(t * walkSpeed + offset + side) * .25;
+      legs[i].rotation.x = Math.sin(t * walkSpeed + offset + side) * .12;
     }
-    // head bob — occasional dip to graze
-    const graze = Math.sin(t * .8) * .5 + .5;
-    const dip = graze > .85 ? (graze - .85) / .15 * .4 : 0;
+    // head bob — mostly grazing, slow
+    const graze = Math.sin(t * .4) * .5 + .5;
+    const dip = graze > .7 ? (graze - .7) / .3 * .35 : 0;
     headGroup.rotation.z = -.1 + dip;
-    headGroup.position.y = .9 - dip * .15;
-    // tail flick
-    tail.rotation.x = Math.sin(t * 3.2) * .15;
+    headGroup.position.y = .9 - dip * .12;
+    // tail flick — gentle
+    tail.rotation.x = Math.sin(t * 1.8) * .1;
     petalS.forEach((s, i) => {
       const k = fract(s[0] + t * (.015 + s[3] * .01));
       const x = -14 + k * 28 + Math.sin(t * .5 + s[1] * 9) * .4, z = -20 + s[2] * 34;
