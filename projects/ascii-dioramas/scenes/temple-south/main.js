@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const W = 1080, HH = 1920, DURATION = 24;
-const COLS = 150, ROWS = 134;
+const COLS = 200, ROWS = 178;
 const CLS = { grass: 1, leaf: 2, flower: 3, stone: 4, stair: 5, gopuram: 6, wood: 7, sand: 8, water: 9, lotus: 10, fox: 11, diya: 12, rock: 13 };
 
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -519,7 +519,7 @@ float lum(vec3 c){ return dot(c,vec3(.25,.6,.15)); }
 vec3 grade(vec3 c){
   c = max(c,0.); c = c/(1.+c*.12); c = pow(c,vec3(1./2.2));
   c = mix(c,c*c*(3.-2.*c),.5);
-  float l = lum(c); c = mix(vec3(l),c,1.22);
+  float l = lum(c); c = mix(vec3(l),c,1.38);
   return clamp(c,0.,1.);
 }
 void main(){
@@ -571,7 +571,7 @@ void main(){
   vec2 gv = g-cell, dx = dFdx(g), dy = dFdy(g);
   float ink = smoothstep(.12,.78,textureGrad(uAtlas,vec2((gl+gv.x)/uN,1.-gv.y),dx/uN,dy).r);
   vec3 blur = grade(textureLod(uScene,vUv,lodC+1.2).rgb);
-  outColor = vec4(mix(blur*.2,col*1.32+.012,ink),1.);
+  outColor = vec4(mix(blur*.14,col*1.45+.015,ink),1.);
 }`;
 const tiltFrag = /* glsl */`
 precision highp float;
