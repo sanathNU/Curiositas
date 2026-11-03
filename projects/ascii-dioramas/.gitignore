@@ -1,0 +1,3 @@
+node_modules/
+scenes/*/build/
+.DS_Store
