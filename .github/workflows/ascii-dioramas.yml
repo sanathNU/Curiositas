@@ -1,0 +1,32 @@
+name: deploy ascii-dioramas
+on:
+  push:
+    branches: [main]
+    paths: ["projects/ascii-dioramas/**", ".github/workflows/ascii-dioramas.yml"]
+  workflow_dispatch:
+
+concurrency: gh-pages-deploy   # shared group: serialize all pushes to gh-pages
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - run: npm ci
+        working-directory: projects/ascii-dioramas
+
+      - run: node build.mjs --base /Curiositas/ascii-dioramas
+        working-directory: projects/ascii-dioramas
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: projects/ascii-dioramas/dist
+          destination_dir: ascii-dioramas
+          keep_files: true

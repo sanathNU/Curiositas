@@ -1,3 +1,4 @@
 node_modules/
 scenes/*/build/
+dist/
 .DS_Store
