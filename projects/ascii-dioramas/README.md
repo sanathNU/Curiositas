@@ -11,15 +11,23 @@ half-float render target, then passes it through two post-processing stages:
 2. **Tilt-shift pass** — applies bokeh blur above and below a focus band, producing
    the miniature-photography effect.
 
-## Running a scene
+## Running
 
 ```bash
-npm install            # once, from this directory
-node serve.mjs harbour # or torii, temple-south
+npm install        # once, from this directory
+node serve.mjs     # homepage at http://127.0.0.1:5173/
 ```
 
-Opens at `http://127.0.0.1:5173/`. Every page reload rebuilds the bundle.
-Press **Space** to pause. Pass a port as a second argument if 5173 is taken.
+Opens a homepage listing all scenes; click one to open it. Every page reload
+rebuilds the bundle. Press **Space** to pause. Pass a port as an argument if
+5173 is taken.
+
+Single-scene mode still works:
+
+```bash
+node serve.mjs harbour       # just harbour at http://127.0.0.1:5173/
+node serve.mjs torii 5175    # torii on port 5175
+```
 
 ## Scenes
 
