@@ -1,15 +1,17 @@
 # ASCII Dioramas
 
 Miniature 3D worlds rendered as coloured monospace glyphs with a tilt-shift blur,
-seen from high above through a long lens. Each scene is a self-contained Three.js
-sketch that draws instanced geometry (grass, flowers, trees, props) into a
-half-float render target, then passes it through two post-processing stages:
+seen from high above through a long lens. Every scene is a short `main.js` on a
+shared engine: it shapes the land, places instanced grass, flowers, trees and
+props, and hands the rest to the engine, which renders the scene into a
+half-float target and runs two post passes:
 
-1. **Glyph pass** — reads each cell from the 3D render, picks a character based on
-   surface class and brightness, and colours it from the scene. The cell background
-   is a dim copy of the render so gaps between glyphs still carry colour.
-2. **Tilt-shift pass** — applies bokeh blur above and below a focus band, producing
-   the miniature-photography effect.
+1. **Glyph pass**: each grid cell becomes one character, chosen by the surface
+   it shows (its *class*), its brightness and the direction of any edge, and
+   coloured from the render. The cell background is a dim copy of the render, so
+   gaps between glyphs still carry colour.
+2. **Tilt-shift pass**: blur grows above and below a focus band, like a
+   photograph of a model.
 
 ## Running
 
@@ -18,97 +20,111 @@ npm install        # once, from this directory
 node serve.mjs     # homepage at http://127.0.0.1:5173/
 ```
 
-Opens a homepage listing all scenes; click one to open it. Every page reload
-rebuilds the bundle. Press **Space** to pause. Pass a port as an argument if
-5173 is taken.
+The homepage lists every scene; each one lives at `/<name>/`. A reload rebuilds
+that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
+`node serve.mjs torii` prints the torii URL as well.
 
-Single-scene mode still works:
+### URL flags (every scene)
 
-```bash
-node serve.mjs harbour       # just harbour at http://127.0.0.1:5173/
-node serve.mjs torii 5175    # torii on port 5175
-```
+| Flag | Effect |
+|---|---|
+| `?fox=walk` | creature walks its path (default) |
+| `?fox=still` | creature stands still and plays the model's look-around clip |
+| `?fox=off` | no creature |
+| `?tilt=off` | skip the tilt-shift pass, whole frame sharp |
+| `?t=12` | start paused at 12 s (Space resumes); repeatable frames for screenshots |
+
+Combine them: `/summit/?fox=still&tilt=off&t=8`.
 
 ## Scenes
 
-| Scene | Subject | Canvas |
-|---|---|---|
-| `harbour` | Fishing harbour with breakwater, boats, lighthouse | 1440×1440 (square) |
-| `torii` | Japanese torii gates along a cliff path to the sea | 1080×1920 (portrait) |
-| `temple-south` | South Indian temple: gopuram towers, Nandi, pushkarini | 1080×1920 (portrait) |
+| Scene | Subject | Canvas | Grid |
+|---|---|---|---|
+| `harbour` | Fishing harbour: a cliff path down to a wooden pier and moored boats | 1440×1440 | 200×100 |
+| `summit` | Himalayan summit: prayer flags in the wind above a sea of cloud | 1080×1920 | 200×178 |
+| `temple-south` | South Indian temple: gopuram towers, ghats, Nandi, pushkarini | 1080×1920 | 200×178 |
+| `torii` | Senbon torii: vermilion gates and stone lanterns down a cliff to the sea | 1080×1920 | 200×178 |
 
 ## Project structure
 
 ```
 ascii-dioramas/
-  serve.mjs              custom dev server (bundles per scene, resolves shared assets)
-  package.json           three + esbuild
+  engine/
+    noise.js      clamp, smoothstep, value noise, fbm, seeded random, GLSL twins
+    materials.js  tag() (class in alpha), wind shaders, textures, vertex colours
+    terrain.js    buildLand (height + trail grids), terrainMesh, waterPlane, sea / cloud shaders
+    fill.js       grass, flowers, trees, rocks, drifting particles
+    glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
+    run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
+  scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
+  site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
+  serve.mjs       dev server
+  build.mjs       static build into dist/ (used by the Pages workflow)
   assets/
-    models/Fox.glb       animated fox model (harbour, torii)
-    tex/*.jpg            shared ground textures (Poly Haven, CC0)
-  scenes/
-    harbour/main.js      ~550 lines
-    torii/main.js         ~540 lines
-    temple-south/main.js  ~750 lines
+    models/Fox.glb   animated fox
+    tex/*.jpg        ground textures (Poly Haven)
+    thumbs/*.jpg     homepage thumbnails
 ```
 
-Each scene is one `main.js` — no framework, no build config per scene. The serve
-script bundles it with esbuild and resolves `assets/` from the project root.
+## Writing a scene
 
-## How the rendering pipeline works
+A scene is config plus whatever is unique to it. `scenes/summit/main.js` uses
+every part of the engine; `scenes/torii/main.js` is the plainest.
 
-### Surface classes (CLS)
+```js
+const rnd = seeded(23);                       // same seed → same scene every load
+const land = buildLand({ path: [[x, z], …], rawH: (x, z) => height });
 
-Every material is tagged with a class ID (1–13) by encoding it in the alpha channel:
-
+runDiorama({
+  size: [1080, 1920], grid: [200, 178],       // canvas px, glyph columns × rows
+  light: { sun: { color, intensity, position, target }, sky: [skyColor, groundColor, intensity] },
+  camera: { target: [x, y, z] },              // radius 76, 52° down, ±7° sweep unless overridden
+  glyphs: { rules, saturation, gain, bg, bgByClass, wind },
+  tilt: { focus: .44 },                       // optional
+  creature: { land, cls, tint, u: [.15, .85], speed, offset, still },   // optional
+  async build(scene) {
+    scene.add(await terrainMesh(land, { textures: [...], paint }));
+    scene.add(waterPlane(land, seaGLSL({ shallow, mid, deep })));
+    grass(scene, { … }); flowers(scene, { … }); /* props */
+    return (t, dt) => { /* optional per-frame work */ };
+  },
+});
 ```
-CLS = { grass: 1, leaf: 2, trunk: 3, stone: 4, stair: 5, ... }
-tag(material, classId)  // sets material.alphaTest to encode the class
-```
 
-The glyph fragment shader reads the class from the alpha of the 3D render and
-selects characters accordingly:
+- **`paint(x, z, y, pathD, T, pick)`** returns `[r, g, b, cls]` for every texel
+  of the 2048×2140 ground texture; `pick(T.leafy_grass, x, z, tile)` samples a
+  photo texture.
+- **`rules`** is GLSL that sets `gl` from `cls`, `L` (luminance), `mag`/`edgeG`
+  (edge strength and the matching `| \ — /`), `w`/`gust` (wind field) and
+  `cell`. Write glyphs as `${g('#')}`; `g()` throws if the glyph is not in the atlas.
+- **Classes** are scene-local numbers 1–13 written into alpha by `tag(material, cls)`.
+  Nothing may use transparency, because blending would mix the class values.
 
-- grass → `/ | \` (lean with wind)
-- foliage → `. : * + o`
-- stone → `— = #`
-- water → `- ~ =` with foam `* % #`
-- creatures → `$ &`
+New scenes are picked up from `scenes/<name>/main.js`; add a line to
+`SCENE_META` in `site.mjs` and a thumbnail in `assets/thumbs/` for the homepage.
 
-### Instanced density
+## Motion
 
-Scenes use `InstancedMesh` for grass (100k–200k blades), flowers (70k–85k),
-leaf cards, and path props (lanterns, steps). Wind animation is done in the
-vertex shader with sine-based displacement, keeping CPU cost near zero.
+Nothing is simulated; everything is a function of time, so scenes loop and
+never drift.
 
-### Camera
-
-The camera sits ~70 units from the subject at ~55° down, FOV ~23. It sweeps
-slowly back and forth over ~14° of yaw with eased turns and a slight dolly.
-The sweep period is ~24 seconds.
-
-### Creatures
-
-- **harbour / torii**: Fox.glb (animated GLTF, `MeshBasicMaterial` to avoid NaN
-  in the half-float target). Walks a CatmullRom path with ping-pong traversal
-  and delta-time animation.
-- **temple-south**: Fox.glb tinted chital-brown, walking on grass beside the
-  path (offset from the stone steps). Same model, warm colour multiply.
-
-## Adding a new scene
-
-1. `mkdir scenes/<name>` and create `main.js`
-2. Copy the pipeline boilerplate from an existing scene (atlas builder, glyph
-   shader, tilt-shift shader, render loop)
-3. Change the terrain, props, colours, and path
-4. `node serve.mjs <name>`
-
-The serve script auto-discovers scenes by looking for `scenes/<name>/main.js`.
+- **Camera**: eased sweep `k = ½ − ½cos(πt/24)`, yaw −7°→+7°, slight push in, then back.
+- **Wind**: one gust band `smoothstep(.15, 1, ½ + ½ sin(rate·t − .28x + .07z))`
+  bends grass blades (more at the tip, `y²`) and streams cloth. The glyph pass
+  has a matching screen-space band so gusts also tip grass glyphs from `|` to `/`.
+- **Water**: foam bands are a sawtooth in `√depth + time`, so they roll toward
+  the shore; a swash rim oscillates at the waterline. Clouds are two drifting
+  fbm layers, lit by comparing density with a sample nudged toward the sun.
+- **Creature**: Fox.glb's walk clip, ping-ponging along the trail at constant
+  speed and facing along the tangent. Drawn unlit, because a lit skinned mesh
+  can write NaN into the half-float target and mipmapping spreads it as black squares.
+- **Particles**: petals and blown snow are instanced cards repositioned each
+  frame from `fract(seed + t·speed)`, so they wrap.
 
 ## Inspiration
 
 This started as a fun side project after seeing ASCII diorama demos circulating
-online — in particular the work by
+online, in particular the work by
 [@HelloVyom](https://x.com/HelloVyom/status/2116539949080272964) and
 [@dhruvtwt\_](https://x.com/dhruvtwt_/status/2117295437535482001)
 ([repo](https://github.com/JDhruv14/ascii-diorama)). The rendering technique
@@ -116,6 +132,8 @@ online — in particular the work by
 template; these scenes build on it with different subjects and props.
 
 ## Assets and licences
+
+Everything else (terrain, props, water, clouds, the glyph atlas) is generated in code.
 
 | Asset | Source | Licence |
 |---|---|---|
