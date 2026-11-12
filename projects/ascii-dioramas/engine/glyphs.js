@@ -33,13 +33,17 @@ export function buildAtlas() {
  *   cell  integer cell coordinates (for static per-cell variation with h21)
  * `rules` must assign `gl` (a glyph index from g()).
  */
-export function asciiFrag({ rules, saturation = 1.3, gain = 1.36, lift = .012, bg = .2, bgByClass = {}, wind = {} }, view = 'glyphs') {
+export const VIEWS = ['glyphs', 'render', 'classes'];
+
+/** `uView` (an index into VIEWS) switches live between glyphs, the plain 3D render and the class map. */
+export function asciiFrag({ rules, saturation = 1.3, gain = 1.36, lift = .012, bg = .2, bgByClass = {}, wind = {} }) {
   const { drift = [.28, .07], spread = 2, bias = 0, gust = 0 } = wind;
   const bgRules = Object.entries(bgByClass).map(([k, v]) => `if(abs(cls-${glf(k)})<.5) bgK = ${glf(v)};`).join(' ');
   return /* glsl */`
 precision highp float;
-uniform sampler2D uScene, uAtlas; uniform vec2 uGrid; uniform float uTime, uN;
+uniform sampler2D uScene, uAtlas; uniform vec2 uGrid; uniform float uTime, uN; uniform int uView;
 in vec2 vUv; out vec4 outColor;
+${CLASS_PALETTE}
 float h21(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y); }
 float lum(vec3 c){ return dot(c,vec3(.25,.6,.15)); }
@@ -50,11 +54,13 @@ vec3 grade(vec3 c){
   return clamp(c,0.,1.);
 }
 void main(){
+  if(uView==1){ outColor = vec4(grade(texture(uScene,vUv).rgb),1.); return; }
   vec2 g = vUv*uGrid, cell = floor(g), cuv = (cell+.5)/uGrid;
   ivec2 sz = textureSize(uScene,0);
   float lodC = log2(float(sz.x)/uGrid.x)+.05;
   vec3 col = grade(textureLod(uScene,cuv,lodC).rgb);
   float cls = floor(texelFetch(uScene,ivec2(cuv*vec2(sz)),0).a*16.+.5);
+  if(uView==2){ outColor = vec4(CLASS_COLORS[int(clamp(cls,0.,13.))],1.); return; }
   float L = lum(col);
   vec2 e = 1./uGrid;
   float lx0=lum(grade(textureLod(uScene,cuv-vec2(e.x,0),lodC).rgb)), lx1=lum(grade(textureLod(uScene,cuv+vec2(e.x,0),lodC).rgb));
@@ -70,13 +76,12 @@ void main(){
   float ink = smoothstep(.12,.78,textureGrad(uAtlas,vec2((gl+gv.x)/uN,1.-gv.y),dx/uN,dy).r);
   vec3 blur = grade(textureLod(uScene,vUv,lodC+1.2).rgb);
   float bgK = ${glf(bg)}; ${bgRules}
+  if(cls<.5){ ink = 0.; bgK = .95; } // sky (nothing drawn): plain soft colour, no glyphs
   outColor = vec4(mix(blur*bgK,col*${glf(gain)}+${glf(lift)},ink),1.);
-  ${view === 'render' ? 'outColor = vec4(grade(texture(uScene,vUv).rgb),1.);' : ''}
-  ${view === 'classes' ? `outColor = vec4(CLASS_COLORS[int(clamp(cls,0.,13.))],1.);` : ''}
-}`.replace('void main(){', `${view === 'classes' ? CLASS_PALETTE : ''}\nvoid main(){`);
+}`;
 }
 
-/** ?view=classes palette, indexed by class number (meanings are per scene; see each CLS table). */
+/** Class-view palette, indexed by class number (meanings are per scene; see each CLS table). */
 export const CLASS_COLORS = ['#000000', '#7cc242', '#1f7a3a', '#e055c8', '#a8aeb8', '#e8b04a', '#e0302a', '#8a5a3a', '#ffffff', '#3a7bd5', '#9fd8ff', '#ff8c00', '#ffe14a', '#4a4f5a'];
 const CLASS_PALETTE = `const vec3 CLASS_COLORS[14] = vec3[14](${CLASS_COLORS.map(h => { const n = parseInt(h.slice(1), 16); return `vec3(${glf((n >> 16) / 255)},${glf(((n >> 8) & 255) / 255)},${glf((n & 255) / 255)})`; }).join(',')});`;
 

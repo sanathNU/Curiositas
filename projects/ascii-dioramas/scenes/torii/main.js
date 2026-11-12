@@ -167,7 +167,7 @@ const rules = /* glsl */`
 
 const blades = bladeWind({ amp: .16, lean: 0, gust: .45, flutter: .22, flutterRate: 1.2, rate: .55 });
 runDiorama({
-  title: 'Torii', size: [1080, 1920], grid: [200, 178],
+  title: 'Torii', size: [1080, 1920], grid: [200, 178], sky: '#cfdcea',
   light: { sun: { color: '#ffe2b8', intensity: 3.5, position: [-30, 44, 20], target: [0, 4, -2] }, sky: ['#f0e0c8', '#6d6236', 1.1] },
   camera: { target: [0, 5.4, 3] },
   glyphs: { rules, saturation: 1.26, gain: 1.34, wind: { drift: [.18, .05] } },

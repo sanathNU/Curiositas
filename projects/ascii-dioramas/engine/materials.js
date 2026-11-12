@@ -56,12 +56,20 @@ export function bladeWind({ amp = .22, lean = .35, gust = .8, flutter = .12, flu
   }, `blade${amp}${lean}${gust}${flutter}${flutterRate}${rate}${drop}${upNormals}`);
 }
 
-/** Small bob and sway for leaf cards, petals on water and flower heads. */
-export function leafWind({ rate = 1.6, bob = .025, sway = .04, swayRate = .6 } = {}) {
-  return keyed((s) => inject(s, `
+/**
+ * Small bob and sway for leaf cards, petals on water and flower heads.
+ * `soften` (0..1) bends each card's lighting normal toward world up, so a crown of randomly
+ * turned cards is lit like one soft mass instead of half its cards going black.
+ */
+export function leafWind({ rate = 1.6, bob = .025, sway = .04, swayRate = .6, soften = 0 } = {}) {
+  return keyed((s) => {
+    inject(s, `
     float ph = instanceMatrix[3].x*.9+instanceMatrix[3].z*.7+instanceMatrix[3].y*.8;
     transformed.y += sin(uT*${glf(rate)}+ph)*${glf(bob)};
-    transformed += vec3(1.,0.,.4)*sin(uT*${glf(swayRate)}+instanceMatrix[3].x*.22)*${glf(sway)};`), `leaf${rate}${bob}${sway}${swayRate}`);
+    transformed += vec3(1.,0.,.4)*sin(uT*${glf(swayRate)}+instanceMatrix[3].x*.22)*${glf(sway)};`);
+    if (soften > 0) s.fragmentShader = s.fragmentShader.replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+    normal = normalize(mix(normal, normalize((viewMatrix*vec4(0.,1.,0.,0.)).xyz), ${glf(soften)}));`);
+  }, `leaf${rate}${bob}${sway}${swayRate}${soften}`);
 }
 
 /**

@@ -82,11 +82,21 @@ const lagoonGLSL = /* glsl */`
 // ---------- mangroves ----------
 function buildMangroves(scene) {
   const T = makeTrees({ H, rnd }), roots = [];
-  const pal = [[.025, .14, .05], [.05, .22, .07], [.09, .32, .09], [.16, .44, .11], [.3, .56, .13]];
+  const pal = [[.06, .22, .07], [.09, .3, .08], [.14, .4, .1], [.22, .5, .12], [.36, .62, .15]];
+  // one crown lobe: a soft sphere of leaf cards, brighter toward its top
+  // `tint` is [r, g, b] per tree, so neighbouring crowns differ in tone and hue
+  const lobe = (lx, ly, lz, lr, tint, count = 150) => {
+    for (let i = 0; i < count; i++) {
+      const u = rnd() * 2 - 1, th = rnd() * 6.28, q = Math.sqrt(1 - u * u), rr = lr * Math.cbrt(rnd());
+      const p = pal[Math.max(0, Math.min(pal.length - 1, ((u * .5 + .5) * pal.length + rnd() * 1.6 - .8) | 0))], lit = .7 + .55 * (u * .5 + .5);
+      T.leaves.push(lx + q * Math.cos(th) * rr, ly + u * rr * .72, lz + q * Math.sin(th) * rr, p[0] * lit * tint[0], p[1] * lit * tint[1], p[2] * lit * tint[2]);
+    }
+  };
   const tube = (pts, r, seg = 10) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg, r, 5, false);
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   for (const [tx, tz, s] of TREES) {
-    const knee = (1.1 + rnd() * .4) * s, H0 = (3.2 + rnd() * 2.4) * s, lean = (rnd() - .5) * .6, tint = .85 + rnd() * .3;
+    const knee = (1.1 + rnd() * .4) * s, H0 = (3.2 + rnd() * 2.4) * s, lean = (rnd() - .5) * .6;
+    const v = .72 + rnd() * .5, hue = rnd() * 2 - 1, tint = [v * (1 + hue * .22), v, v * (1 - hue * .3)];
     const top = V(tx + lean, H0, tz + (rnd() - .5) * .5);
     T.trunks.push(tube([V(tx, knee * .5, tz), V(tx + lean * .3, (knee + H0) * .5, tz), top], .17 * s));
     // a cage of prop roots arching from the lower trunk into the water, with drop roots off the arches
@@ -101,23 +111,17 @@ function buildMangroves(scene) {
         roots.push(tube([mid.clone(), mid.clone().lerp(end, .5).setY(mid.y * .7), end], .035 * s, 6));
       }
     }
-    // limbs fan out from the top; each carries two or three heavy crown lobes, lighter on top
+    // limbs fan out from the top into heavy lobes; a central lobe closes the crown over the trunk
     for (let l = 0, limbs = 4 + (rnd() * 3 | 0); l < limbs; l++) {
       const a = l / limbs * 6.283 + rnd() * .7, r = (1 + rnd() * 1.1) * s;
       const end = V(top.x + Math.cos(a) * r, top.y + (.5 + rnd() * .9) * s, top.z + Math.sin(a) * r);
-      T.trunks.push(tube([top.clone().setY(top.y - .6 * s), top.clone().lerp(end, .5).setY(top.y + .25 * s), end], .075 * s, 6));
-      for (let k = 0, lobes = 2 + (rnd() * 2 | 0); k < lobes; k++) {
-        const lx = end.x + (rnd() - .5) * 1.2 * s, lz = end.z + (rnd() - .5) * 1.2 * s, ly = end.y + (rnd() - .2) * .7 * s, lr = (.8 + rnd() * .5) * s;
-        for (let i = 0; i < 115; i++) {
-          const u = rnd() * 2 - 1, th = rnd() * 6.28, q = Math.sqrt(1 - u * u), rr = lr * Math.cbrt(rnd());
-          const p = pal[Math.min(pal.length - 1, ((u * .5 + .5) * pal.length + rnd() * 1.6 - .8) | 0)] ?? pal[0], lit = (.75 + .5 * (u * .5 + .5)) * tint;
-          T.leaves.push(lx + q * Math.cos(th) * rr, ly + u * rr * .7, lz + q * Math.sin(th) * rr, p[0] * lit, p[1] * lit, p[2] * lit);
-        }
-      }
+      T.trunks.push(tube([top.clone().setY(top.y - .6 * s), top.clone().lerp(end, .5).setY(top.y + .25 * s), end], .055 * s, 6));
+      for (let k = 0, lobes = 2 + (rnd() * 2 | 0); k < lobes; k++) lobe(end.x + (rnd() - .5) * 1.2 * s, end.y + (rnd() - .2) * .7 * s, end.z + (rnd() - .5) * 1.2 * s, (1 + rnd() * .5) * s, tint);
     }
+    lobe(top.x, top.y + 1.1 * s, top.z, 1.5 * s, tint, 220);
   }
-  T.finish(scene, { leafCls: CLS.leaf, woodCls: CLS.wood, wind: leafWind({ rate: 1.1, bob: .025, sway: .04, swayRate: .45 }), barkColor: '#5a3a22', leafSize: [.34, .28] });
-  const rm = new THREE.Mesh(mergeGeometries(roots), tag(new THREE.MeshLambertMaterial({ color: '#86512a' }), CLS.root));
+  T.finish(scene, { leafCls: CLS.leaf, woodCls: CLS.wood, wind: leafWind({ rate: 1.1, bob: .025, sway: .04, swayRate: .45, soften: .4 }), barkColor: '#4e3420', leafSize: [.36, .3] });
+  const rm = new THREE.Mesh(mergeGeometries(roots), tag(new THREE.MeshLambertMaterial({ color: '#6e4e34' }), CLS.root));
   rm.castShadow = true; rm.receiveShadow = true; scene.add(rm);
 }
 
@@ -217,7 +221,7 @@ const rules = /* glsl */`
   if(cls<1.5){        // moss and sedge on the mud mounds
     gl = L<.08?${g('.')}:L<.15?${g(':')}:(w<-.2?${g('\\')}:w>.2?${g('/')}:${g('|')});
   } else if(cls<2.5){ // crowns: dark undersides to bright lumpy tops
-    gl = L<.05?${g('.')}:L<.1?${g(':')}:L<.17?${g('*')}:L<.26?${g('+')}:L<.38?${g('o')}:${g('8')};
+    gl = L<.06?${g('.')}:L<.12?${g(':')}:L<.2?${g('*')}:L<.3?${g('+')}:L<.44?${g('o')}:${g('8')};
   } else if(cls<3.5){ // lily pads, blossoms
     gl = L<.15?${g(':')}:L<.35?${g('o')}:L<.55?${g('%')}:${g('*')};
   } else if(cls<4.5){ // hut walls
@@ -240,11 +244,11 @@ const rules = /* glsl */`
   } else if(cls<12.5){ // lantern light, windows, fireflies
     gl = L<.4?${g('*')}:L<.7?${g('o')}:${g('#')};
   } else {            // prop roots: tangles of edge strokes
-    gl = mag>.04?edgeG:(L<.06?${g('.')}:L<.14?${g(':')}:${g('%')});
+    gl = mag>.08?edgeG:(L<.06?${g('.')}:L<.14?${g(':')}:${g('%')});
   }`;
 
 runDiorama({
-  title: 'Mangroves', size: [1080, 1920], grid: [200, 178],
+  title: 'Mangroves', size: [1080, 1920], grid: [200, 178], sky: '#2e4a46',
   light: { sun: { color: '#ffc68c', intensity: 3, position: [-36, 24, 18], target: [0, 0, -2] }, sky: ['#5f8f86', '#17201a', 1.05], shadowFar: 150 },
   camera: { target: [1.5, 1, -5], elevation: 48 },
   glyphs: { rules, saturation: 1.45, gain: 1.75, bg: .26, bgByClass: { 12: .5, 10: .45, 9: .32 }, wind: { drift: [.15, .04] } },

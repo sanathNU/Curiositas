@@ -119,7 +119,9 @@ void main(){
   gl_FragColor = vec4(c,cls/16.);
 }`,
   });
-  const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0); g.rotateX(-Math.PI / 2); g.translate((X0 + X1) / 2, 0, (Z0 + Z1) / 2);
+  // 8× the land's extent, so wide screens and low orbits see sea or cloud to the horizon instead of
+  // the black void past the edge; outside the land the depth texture clamps to its edge (open water).
+  const g = new THREE.PlaneGeometry((X1 - X0) * 8, (Z1 - Z0) * 8); g.rotateX(-Math.PI / 2); g.translate((X0 + X1) / 2, 0, (Z0 + Z1) / 2);
   return new THREE.Mesh(g, m);
 }
 

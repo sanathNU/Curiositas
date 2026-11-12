@@ -66,15 +66,21 @@ function buildTrees(scene) {
 // ---------- pier, bollards, boats ----------
 const onPier = (s) => s && s.z >= coastZ(s.x) - 1;
 function buildPier(scene) {
-  const plankTex = tex('assets/tex/weathered_planks.jpg', 2, 1), o = new THREE.Object3D(), steps = Math.floor(land.length / .43);
+  const o = new THREE.Object3D(), steps = Math.floor(land.length / .43);
   const landSteps = new THREE.InstancedMesh(new THREE.BoxGeometry(1.75, .2, .4), tag(new THREE.MeshLambertMaterial({ map: tex('assets/tex/castle_wall_slates.jpg', .4, .2), color: '#cfcac4' }), CLS.stair), steps);
-  const planks = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, .16, .42), tag(new THREE.MeshLambertMaterial({ map: plankTex, color: '#b09a82' }), CLS.pier), steps);
+  // Pier boards: light weathered wood, each a slightly different tone (from a fixed hash, so the
+  // scene's random sequence is untouched). The dark plank photo made the deck read as a black gap.
+  const planks = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, .16, .42), tag(new THREE.MeshLambertMaterial(), CLS.pier), steps);
+  const c = new THREE.Color(), tone = (i) => .8 + .38 * fract(Math.sin(i * 12.9898) * 43758.5453);
   let li = 0, pi = 0;
   for (let i = 0; i < steps; i++) {
     const { p, yaw } = land.frame((i + .5) / steps), y = pathY(p.x, p.z);
     o.rotation.set(0, yaw, 0);
     if (p.z < coastZ(p.x) - 2) { o.position.set(p.x, y, p.z); o.updateMatrix(); landSteps.setMatrixAt(li++, o.matrix); }
-    else { o.position.set(p.x, Math.max(y, PIER_Y), p.z); o.updateMatrix(); planks.setMatrixAt(pi++, o.matrix); }
+    else {
+      o.position.set(p.x, Math.max(y, PIER_Y), p.z); o.updateMatrix(); planks.setMatrixAt(pi, o.matrix);
+      const v = tone(i); planks.setColorAt(pi++, c.setRGB(.6 * v, .5 * v, .39 * v));
+    }
   }
   landSteps.count = li; planks.count = pi;
   for (const m of [landSteps, planks]) { m.receiveShadow = true; m.castShadow = true; scene.add(m); }
@@ -88,15 +94,16 @@ function buildPier(scene) {
     const dx = next.x - s.x, dz = next.z - s.z, len = Math.hypot(dx, dz);
     if (len < .1) continue;
     for (const side of [-1, 1]) {
-      const rg = new THREE.CylinderGeometry(.035, .035, len, 5); rg.rotateZ(Math.PI / 2);
+      // lay the rail along local z, which the yaw below turns to run down the pier
+      const rg = new THREE.CylinderGeometry(.035, .035, len, 5); rg.rotateX(Math.PI / 2);
       rg.applyMatrix4(new THREE.Matrix4().makeRotationY(Math.atan2(dx, dz)).setPosition((s.x + next.x) / 2 + side * 1.15, PIER_Y + .9, (s.z + next.z) / 2));
       rails.push(rg);
     }
   }
-  for (const [parts, color, shadow] of [[posts, '#7a6a55', true], [rails, '#8a7a65', false]]) {
+  for (const [parts, color, shadow] of [[posts, '#8a7660', true], [rails, '#b09a78', false]]) {
     if (!parts.length) continue;
     const mg = mergeGeometries(parts); mg.computeVertexNormals();
-    const mesh = new THREE.Mesh(mg, tag(new THREE.MeshLambertMaterial({ map: plankTex, color }), CLS.pier));
+    const mesh = new THREE.Mesh(mg, tag(new THREE.MeshLambertMaterial({ color }), CLS.pier));
     mesh.castShadow = true; mesh.receiveShadow = shadow; scene.add(mesh);
   }
 }
@@ -165,7 +172,7 @@ const rules = /* glsl */`
 
 const blades = bladeWind({ amp: .22, lean: 0, gust: .6, flutter: .28, flutterRate: 1.6, rate: .75 });
 runDiorama({
-  title: 'Harbour', size: [1440, 1440], grid: [200, 100],
+  title: 'Harbour', size: [1440, 1440], grid: [200, 100], sky: '#b8d4ec',
   light: { sun: { color: '#ffe7c4', intensity: 3.3, position: [-30, 44, 20], target: [0, 4, -2] }, sky: ['#efe6d8', '#6d6236', 1] },
   camera: { target: [-1, 4.8, 5] },
   glyphs: { rules, saturation: 1.22, gain: 1.32, wind: { drift: [.28, .07] } },

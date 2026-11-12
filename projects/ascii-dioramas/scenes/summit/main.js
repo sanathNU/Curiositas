@@ -58,7 +58,7 @@ function zone(x, z, y) {
   if (y > sy && (slope > 2.2 || fbm(x * .22 - 4, z * .3 + 2) > .67)) return 'rock';
   if (y > sy || (y > sy - 2.5 && fbm(x * .35 + 1, z * .35 - 6) > .64)) return 'snow';
   const n = fbm(x * .2 + 3, z * .2 - 2);
-  if (slope > 1.9 || n > .67 || y < .5 + n * .6) return 'rock';
+  if (slope > 1.9 || n > .67 || y < .25 + n * .35) return 'rock';
   return 'grass';
 }
 const lumOf = (c) => (c[0] + c[1] + c[2]) / 3;
@@ -69,7 +69,8 @@ function paint(x, z, y, pd, T, pick) {
     return [212 * v, 220 * v, 236 * v, CLS.snow];
   }
   if (pd < 1.05) { const c = pick(T.castle_wall_slates, x, z, 3), l = lumOf(c); return [l * .86 + c[0] * .1, l * .8 + c[1] * .1, l * .72 + c[2] * .1, CLS.trail]; }
-  if (zn === 'rock') { const l = lumOf(pick(T.aerial_rocks_02, x, z, 6)); return [l * .42 + 6, l * .45 + 8, l * .52 + 14, CLS.rock]; }
+  // mid warm-grey cliff rock: light enough to carry glyphs in shade, darker than the snow
+  if (zn === 'rock') { const l = lumOf(pick(T.aerial_rocks_02, x, z, 6)); return [l * .6 + 26, l * .58 + 26, l * .6 + 30, CLS.rock]; }
   const gt = pick(T.leafy_grass, x, z, 2.6), l = gt[0] * .3 + gt[1] * .55 + gt[2] * .15;
   const v = .88 + .7 * fbm(x * .16 + 5, z * .16), gr = fbm(x * .11 - 3, z * .11 + 8);
   const c = [l * (1.3 - gr * .6) * v, l * (1.08 - gr * .05) * v, l * .34 * v];
@@ -163,19 +164,21 @@ const rules = /* glsl */`
   } else if(cls<12.5){ // blown snow
     gl = L<.5?${g("'")}:L<.75?${g('-')}:${g('~')};
   } else {            // rock
-    gl = L<.15?${g('.')}:L<.32?${g(':')}:${g('%')};
+    gl = L<.08?${g('.')}:L<.18?${g(':')}:L<.34?${g(';')}:L<.6?${g('%')}:${g('#')};
     if(mag>.2) gl = edgeG;
   }`;
 
 runDiorama({
-  title: 'Summit', size: [1080, 1920], grid: [200, 178],
-  light: { sun: { color: '#fff0da', intensity: 3.8, position: [C.x - 20, 58, C.z + 28], target: [C.x, 4, C.z] }, sky: ['#d8e4ff', '#7a6a48', 1.5], shadowFar: 150 },
+  title: 'Summit', size: [1080, 1920], grid: [200, 178], sky: '#a8c8f0',
+  // bright midday: strong warm-white sun, clear blue sky fill
+  light: { sun: { color: '#fff6e6', intensity: 4.4, position: [C.x - 20, 58, C.z + 28], target: [C.x, 4, C.z] }, sky: ['#c6dcff', '#8a7a52', 1.8], shadowFar: 150 },
   camera: { target: [C.x, SUMMIT_Y, C.z - 1.2] },
-  glyphs: { rules, saturation: 1.3, gain: 1.36, bgByClass: { 8: .62, 9: .36, 10: .36 }, wind: { drift: [.32, .04], spread: 1.4, bias: .05, gust: .9 } },
+  glyphs: { rules, saturation: 1.45, gain: 1.45, bgByClass: { 8: .8, 9: .5, 10: .6 }, wind: { drift: [.32, .04], spread: 1.4, bias: .05, gust: .9 } },
   creature: { land, cls: CLS.fox, tint: [1.3, 1, .7], u: [.08, .55], speed: .6, still: [C.x + 1.5, C.z + .8, .6] },
   async build(scene) {
-    scene.add(await terrainMesh(land, { textures: ['leafy_grass', 'aerial_rocks_02', 'castle_wall_slates'], paint }), waterPlane(land, cloudGLSL()));
-    const gold = new THREE.Color(.4, .33, .15), green = new THREE.Color(.15, .29, .09);
+    scene.add(await terrainMesh(land, { textures: ['leafy_grass', 'aerial_rocks_02', 'castle_wall_slates'], paint }), waterPlane(land, cloudGLSL({ shade: [.42, .52, .72], body: [.74, .8, .9], top: [.96, .97, 1] })));
+    // still alpine tussock, just clearer: gold blades leaning to green in the hollows
+    const gold = new THREE.Color(.5, .41, .15), green = new THREE.Color(.2, .37, .1);
     grass(scene, {
       cls: CLS.grass, rnd, H, count: 180000, area: [-20, 20, -22, 18], height: [.26, .28],
       wind: bladeWind({ amp: .22, lean: .35, gust: .8, flutter: .12, drop: .1, upNormals: true }),
@@ -204,7 +207,7 @@ runDiorama({
     }
     shrubs.finish(scene, { leafCls: CLS.leaf, wind: leafWind({ rate: 2.4, bob: .03, swayRate: 1.1, sway: .05 }), leafSize: [.24, .2] });
     buildCairns(scene, buildPrayerFlags(scene));
-    rocks(scene, ROCKS, { cls: CLS.rock, rnd, y: (x, z, r) => H(x, z) - r * .3, color: [.3, .32, .36], flatten: .5 });
+    rocks(scene, ROCKS, { cls: CLS.rock, rnd, y: (x, z, r) => H(x, z) - r * .3, color: [.55, .55, .58], flatten: .5 });
     return drifters(scene, {
       count: 320, cls: CLS.flake, rnd, color: [1.25, 1.3, 1.4], geometry: new THREE.PlaneGeometry(.16, .05).rotateX(-Math.PI / 2 + .6),
       place(s, t, d) {

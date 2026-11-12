@@ -34,10 +34,24 @@ that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
 | `?tilt=off` | skip the tilt-shift pass, whole frame sharp |
 | `?title=off` | hide the scene title |
 | `?t=12` | start paused at 12 s (Space resumes); repeatable frames for screenshots |
-| `?view=render` / `?view=classes` | show the raw 3D render, or each cell's surface class |
+| `?view=render` / `?view=classes` | start in the plain 3D view, or the surface-class map |
 | `?res=phone` | render at a fixed resolution and letterbox it (see below) |
+| `?ui=off` | hide the menu button (keys and camera gestures still work) |
 
 Combine them: `/summit/?fox=still&tilt=off&t=8`.
+
+### Looking around
+
+Every scene can be explored by hand while its camera keeps sweeping:
+
+- **Drag** to orbit (up to ±80° around, 14°–86° elevation), **scroll** or
+  **pinch** to zoom, **double-click** to reset.
+- A faint **menu button** in the top-right corner opens: back to all scenes,
+  ASCII / 3D / Classes view, tilt-shift on or off, pause, reset camera, and
+  **Record video**, which saves what the canvas shows (any view) as a WebM or
+  MP4 file. The title overlay and the menu are not part of the recording.
+- Keys: `M` menu, `V` next view, `T` tilt-shift, `Space` pause, `R` start/stop
+  recording, `0` or `Esc` reset camera.
 
 ### Screens
 
@@ -89,6 +103,7 @@ ascii-dioramas/
     glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
     display.js    resolutions, device profiles, render size and grid, camera framing
     title.js      scene title overlay
+    controls.js   orbit and zoom gestures, hidden menu, keys, video recording
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
