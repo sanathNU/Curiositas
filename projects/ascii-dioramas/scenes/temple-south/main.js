@@ -213,7 +213,7 @@ const rules = /* glsl */`
 
 const blades = bladeWind({ amp: .14, lean: 0, gust: .4, flutter: .2, flutterRate: 1.1, rate: .5 });
 runDiorama({
-  size: [1080, 1920], grid: [200, 178],
+  title: 'Temple', size: [1080, 1920], grid: [200, 178],
   light: { sun: { color: '#ffd8a0', intensity: 3.2, position: [-28, 40, 18], target: [0, 4, -2] }, sky: ['#e8d8b8', '#5a5830', 1.2] },
   camera: { target: [0, 5.2, 2], radius: 74, elevation: 54, wobble: 1.2 },
   glyphs: { rules, saturation: 1.38, gain: 1.42, lift: .015, bg: .18, wind: { drift: [.15, .04] } },

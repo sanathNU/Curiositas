@@ -168,7 +168,7 @@ const rules = /* glsl */`
   }`;
 
 runDiorama({
-  size: [1080, 1920], grid: [200, 178],
+  title: 'Summit', size: [1080, 1920], grid: [200, 178],
   light: { sun: { color: '#fff0da', intensity: 3.8, position: [C.x - 20, 58, C.z + 28], target: [C.x, 4, C.z] }, sky: ['#d8e4ff', '#7a6a48', 1.5], shadowFar: 150 },
   camera: { target: [C.x, SUMMIT_Y, C.z - 1.2] },
   glyphs: { rules, saturation: 1.3, gain: 1.36, bgByClass: { 8: .62, 9: .36, 10: .36 }, wind: { drift: [.32, .04], spread: 1.4, bias: .05, gust: .9 } },

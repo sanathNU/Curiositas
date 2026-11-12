@@ -6,12 +6,16 @@ import { fileURLToPath } from 'node:url';
 
 export const root = path.dirname(fileURLToPath(import.meta.url));
 
-/** Homepage entries. A scene folder without an entry here still shows, with its folder name. */
+/**
+ * Homepage entries. A scene folder without an entry here still shows, with its folder name.
+ * `canvas` is the aspect the scene was composed for; every scene fills whatever screen it is on.
+ */
 export const SCENE_META = {
-  harbour: { title: 'Harbour', desc: 'Fishing harbour: a cliff path down to a wooden pier and moored boats', canvas: '1440×1440' },
-  summit: { title: 'Summit', desc: 'Himalayan summit: prayer flags streaming in the wind above a sea of cloud', canvas: '1080×1920' },
-  'temple-south': { title: 'Temple South', desc: 'South Indian temple: gopuram towers, Nandi, pushkarini', canvas: '1080×1920' },
-  torii: { title: 'Torii', desc: 'Senbon torii: vermilion gates and stone lanterns down a cliff to the sea', canvas: '1080×1920' },
+  harbour: { title: 'Harbour', desc: 'Fishing harbour: a cliff path down to a wooden pier and moored boats', canvas: 'composed 1:1' },
+  mangroves: { title: 'Mangroves', desc: 'Dusk in a mangrove swamp: a lantern-lit boardwalk to a stilt hut, trees on arching prop roots', canvas: 'composed 9:16' },
+  summit: { title: 'Summit', desc: 'Himalayan summit: prayer flags streaming in the wind above a sea of cloud', canvas: 'composed 9:16' },
+  'temple-south': { title: 'Temple South', desc: 'South Indian temple: gopuram towers, Nandi, pushkarini', canvas: 'composed 9:16' },
+  torii: { title: 'Torii', desc: 'Senbon torii: vermilion gates and stone lanterns down a cliff to the sea', canvas: 'composed 9:16' },
 };
 const meta = (name) => SCENE_META[name] ?? { title: name, desc: '', canvas: '' };
 
@@ -118,7 +122,7 @@ export function homepageHtml(scenes, { base = '', home = 'https://github.com/san
   <ul class="scenes">
 ${items}
   </ul>
-  <p class="note">Space pauses. Add <code>?fox=still</code>, <code>?fox=off</code>, <code>?tilt=off</code> or <code>?t=12</code> (frozen at 12&nbsp;s) to any scene's address.</p>
+  <p class="note">Scenes fill any screen, phone to ultrawide. Space pauses. Add <code>?fox=still</code>, <code>?fox=off</code>, <code>?tilt=off</code>, <code>?title=off</code>, <code>?t=12</code> (frozen at 12&nbsp;s) or <code>?res=phone</code> (also <code>tablet</code>, <code>laptop</code>, <code>desktop</code>, <code>4k</code>, <code>ultrawide</code>, <code>1280x720</code>) to any scene's address.</p>
 
   <h2>About</h2>
   <div class="about">

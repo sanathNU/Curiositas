@@ -32,18 +32,50 @@ that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
 | `?fox=still` | creature stands still and plays the model's look-around clip |
 | `?fox=off` | no creature |
 | `?tilt=off` | skip the tilt-shift pass, whole frame sharp |
+| `?title=off` | hide the scene title |
 | `?t=12` | start paused at 12 s (Space resumes); repeatable frames for screenshots |
+| `?view=render` / `?view=classes` | show the raw 3D render, or each cell's surface class |
+| `?res=phone` | render at a fixed resolution and letterbox it (see below) |
 
 Combine them: `/summit/?fox=still&tilt=off&t=8`.
 
+### Screens
+
+By default a scene fills the window at its real pixel density, on any shape:
+phone, tablet, laptop, ultrawide, or an odd window size. It re-lays out live on
+resize, rotation, or a move to a monitor with a different pixel ratio.
+
+- **Device profile** (picked from the window size): sets the pixel budget,
+  glyph size and shadow quality.
+
+  | Profile | When | Max render pixels | Glyph cell | Shadow map |
+  |---|---|---|---|---|
+  | phone | shorter side < 600 CSS px | 2.2 M | ×1 | 2048 |
+  | tablet | shorter side < 1000, longer < 1400 | 3.2 M | ×1.05 | 4096 |
+  | desktop | anything else | 4.2 M | ×1.15 | 4096 |
+  | large | over 7 M device pixels | 6.5 M | ×1.3 | 4096 |
+
+- **Glyph grid**: keeps each scene's cell size (5.4 × 10.8 px for the portrait
+  scenes) times the profile's factor, so a phone gets fewer columns and a big
+  monitor more, with the same look.
+- **Framing**: each scene keeps the shape it was composed for. On a narrower
+  screen the lens widens (up to 34°), then the camera pulls back, so nothing is
+  cropped from the sides. On a wider screen it shows at most 1.8× the composed
+  width and crops height, which zooms toward the focal band.
+- **Fixed resolutions**: `?res=` takes `phone` (1170×2532), `phone-land`,
+  `tablet` (1640×2360), `tablet-land`, `laptop` (2560×1600), `desktop`
+  (1920×1080), `4k`, `ultrawide` (3440×1440), `square`, `frame` (the scene's
+  composed size) or any `WxH` such as `?res=1366x768`.
+
 ## Scenes
 
-| Scene | Subject | Canvas | Grid |
+| Scene | Subject | Composed for | Cell |
 |---|---|---|---|
-| `harbour` | Fishing harbour: a cliff path down to a wooden pier and moored boats | 1440×1440 | 200×100 |
-| `summit` | Himalayan summit: prayer flags in the wind above a sea of cloud | 1080×1920 | 200×178 |
-| `temple-south` | South Indian temple: gopuram towers, ghats, Nandi, pushkarini | 1080×1920 | 200×178 |
-| `torii` | Senbon torii: vermilion gates and stone lanterns down a cliff to the sea | 1080×1920 | 200×178 |
+| `harbour` | Fishing harbour: a cliff path down to a wooden pier and moored boats | 1:1 (1440×1440) | 7.2 × 14.4 px |
+| `mangroves` | Dusk in a mangrove swamp: lantern-lit boardwalk to a stilt hut, prop-root mangroves, lily pads, fireflies | 9:16 | 5.4 × 10.8 px |
+| `summit` | Himalayan summit: prayer flags in the wind above a sea of cloud | 9:16 | 5.4 × 10.8 px |
+| `temple-south` | South Indian temple: gopuram towers, ghats, Nandi, pushkarini | 9:16 | 5.4 × 10.8 px |
+| `torii` | Senbon torii: vermilion gates and stone lanterns down a cliff to the sea | 9:16 | 5.4 × 10.8 px |
 
 ## Project structure
 
@@ -55,6 +87,8 @@ ascii-dioramas/
     terrain.js    buildLand (height + trail grids), terrainMesh, waterPlane, sea / cloud shaders
     fill.js       grass, flowers, trees, rocks, drifting particles
     glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
+    display.js    resolutions, device profiles, render size and grid, camera framing
+    title.js      scene title overlay
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
@@ -76,7 +110,8 @@ const rnd = seeded(23);                       // same seed → same scene every 
 const land = buildLand({ path: [[x, z], …], rawH: (x, z) => height });
 
 runDiorama({
-  size: [1080, 1920], grid: [200, 178],       // canvas px, glyph columns × rows
+  title: 'Torii',                             // shown over the frame; ?title=off hides it
+  size: [1080, 1920], grid: [200, 178],       // frame it was composed for, and glyph density there
   light: { sun: { color, intensity, position, target }, sky: [skyColor, groundColor, intensity] },
   camera: { target: [x, y, z] },              // radius 76, 52° down, ±7° sweep unless overridden
   glyphs: { rules, saturation, gain, bg, bgByClass, wind },

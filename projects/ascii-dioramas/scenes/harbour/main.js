@@ -165,7 +165,7 @@ const rules = /* glsl */`
 
 const blades = bladeWind({ amp: .22, lean: 0, gust: .6, flutter: .28, flutterRate: 1.6, rate: .75 });
 runDiorama({
-  size: [1440, 1440], grid: [200, 100],
+  title: 'Harbour', size: [1440, 1440], grid: [200, 100],
   light: { sun: { color: '#ffe7c4', intensity: 3.3, position: [-30, 44, 20], target: [0, 4, -2] }, sky: ['#efe6d8', '#6d6236', 1] },
   camera: { target: [-1, 4.8, 5] },
   glyphs: { rules, saturation: 1.22, gain: 1.32, wind: { drift: [.28, .07] } },
