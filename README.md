@@ -9,6 +9,7 @@ only itself into its subfolder of the `gh-pages` branch. Write-ups live on
 
 | Project | What it is | Toolchain |
 |---|---|---|
+| [ascii-dioramas](projects/ascii-dioramas/) | My little engine for miniature 3D worlds drawn as coloured monospace glyphs, tilt-shift blur and all. A scene is just a short script on top of it, and scenes can carry their own music, generated live from polyrhythms. More scenes whenever I get curious. [Live](https://sanathnu.github.io/Curiositas/ascii-dioramas/) | Three.js + esbuild, Web Audio |
 | [atlas-of-crypto](projects/atlas-of-crypto/) | Theoretical cryptography as a map: topics as provinces, a note for each, results as links. [Live](https://sanathnu.github.io/Curiositas/atlas-of-crypto/) | data for the [atlas engine](lib/atlas/) (static, Node tools) |
 | [sdoc-viewer](projects/sdoc-viewer/) | Client-side reader for Samsung Notes (`.sdocx` / `.sdoc`) files, with handwriting rendered by a WASM parser. [Live](https://sanathnu.github.io/Curiositas/sdoc-viewer/) | Vite + WASM |
 
