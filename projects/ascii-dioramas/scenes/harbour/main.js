@@ -171,7 +171,22 @@ const rules = /* glsl */`
   }`;
 
 const blades = bladeWind({ amp: .22, lean: 0, gust: .6, flutter: .28, flutterRate: 1.6, rate: .75 });
+// ---------- music: a slow morning harbour ----------
+// 2 : 3 : 4 : 5 over a 12 s cycle, F major pentatonic, mostly rests. Waves break twice a cycle, a
+// bass mallet in 3 (boats rocking against the pier), a few marimba notes in 4 and a bell buoy that
+// now and then rings in 5 when the swell lifts it. Four cycles per camera sweep.
+const MUSIC = {
+  tonic: 174.61, cycle: 12, reverb: { seconds: 4.5, wet: .34, tone: .55 },
+  voices: [
+    { n: 2, inst: 'swell', freq: 1000, gain: .085, rise: 2.4, fall: 4, accent: 1.1, wet: .15 },
+    { n: 3, inst: 'mallet', notes: [-12, -5, null, -12, null, -10], gain: .16, pan: -.12, decay: 2.6 },
+    { n: 4, inst: 'mallet', notes: [12, null, 19, null, 16, null, null, 14], gain: .13, pan: .22, prob: .8, decay: 1.8 },
+    { n: 5, inst: 'bell', notes: [26], gain: .04, pan: -.45, prob: .22, decay: 4.5, beat: 2 },
+  ],
+};
+
 runDiorama({
+  music: MUSIC,
   title: 'Harbour', size: [1440, 1440], grid: [200, 100], sky: '#b8d4ec',
   light: { sun: { color: '#ffe7c4', intensity: 3.3, position: [-30, 44, 20], target: [0, 4, -2] }, sky: ['#efe6d8', '#6d6236', 1] },
   camera: { target: [-1, 4.8, 5] },

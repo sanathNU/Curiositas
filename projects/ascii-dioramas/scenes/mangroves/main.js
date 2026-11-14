@@ -247,7 +247,22 @@ const rules = /* glsl */`
     gl = mag>.08?edgeG:(L<.06?${g('.')}:L<.14?${g(':')}:${g('%')});
   }`;
 
+// ---------- music: dusk in the swamp ----------
+// 3 : 5 : 7 over a slow 12 s cycle, E minor pentatonic over a warm breathing drone. A few kalimba
+// notes in 3 (the lanterns), scattered crickets in 5 and tree frogs in 7 on opposite banks.
+// Four cycles per camera sweep.
+const MUSIC = {
+  tonic: 164.81, cycle: 12, volume: 2.3, reverb: { seconds: 6.5, wet: .45, tone: .4 },
+  pad: { notes: [-12, -5, 3], gain: .04, cutoff: 650, breathe: .04 },
+  voices: [
+    { n: 3, inst: 'mallet', notes: [15, null, 10, 12, null, null], gain: .13, pan: .12, decay: 2.8, over: 5.6 },
+    { n: 5, inst: 'tick', freq: 4300, count: 3, gap: .04, q: 18, gain: .04, pan: .6, prob: .45, wet: .3 },
+    { n: 7, inst: 'chirp', freq: 850, count: 2, gain: .05, pan: -.55, prob: .4, wet: .35 },
+  ],
+};
+
 runDiorama({
+  music: MUSIC,
   title: 'Mangroves', size: [1080, 1920], grid: [200, 178], sky: '#2e4a46',
   light: { sun: { color: '#ffc68c', intensity: 3, position: [-36, 24, 18], target: [0, 0, -2] }, sky: ['#5f8f86', '#17201a', 1.05], shadowFar: 150 },
   camera: { target: [1.5, 1, -5], elevation: 48 },

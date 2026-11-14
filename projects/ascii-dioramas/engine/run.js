@@ -6,6 +6,7 @@ import { GLYPHS, VIEWS, buildAtlas, asciiFrag, tiltFrag } from './glyphs.js';
 import { mountControls } from './controls.js';
 import { PROFILES, parseRes, layout, frameCamera } from './display.js';
 import { mountTitle } from './title.js';
+import { mountMusic } from './music.js';
 
 /**
  * URL flags, the same for every scene:
@@ -16,12 +17,13 @@ import { mountTitle } from './title.js';
  *   ?res=<name>|WxH|frame render at a fixed resolution (see RESOLUTIONS) instead of filling the window
  *   ?title=off           hide the scene title
  *   ?ui=off              hide the menu button (keys and camera gestures still work)
+ *   ?sound=on|off        start the scene's music on the first click or key, or leave it out entirely
  */
 export function readFlags(search = location.search) {
   const q = new URLSearchParams(search), t = q.get('t');
   return {
     fox: q.get('fox') || 'walk', tilt: q.get('tilt') !== 'off', view: q.get('view') || 'glyphs', res: q.get('res'),
-    title: q.get('title') !== 'off', ui: q.get('ui') !== 'off',
+    title: q.get('title') !== 'off', ui: q.get('ui') !== 'off', sound: q.get('sound'),
     freeze: t !== null && t !== '' && Number.isFinite(+t) ? +t : null,
   };
 }
@@ -131,7 +133,8 @@ export async function runDiorama(cfg) {
   Object.assign(canvas.style, { display: 'block', width: '100%', height: '100%' });
   stage.append(canvas); document.body.append(stage);
   if (cfg.title && flags.title) mountTitle(stage, cfg.title);
-  mountControls(stage, canvas, state, { name: location.pathname.split('/').filter(Boolean).pop() || 'diorama', menu: flags.ui });
+  const music = cfg.music && flags.sound !== 'off' ? mountMusic(cfg.music) : null;
+  mountControls(stage, canvas, state, { name: location.pathname.split('/').filter(Boolean).pop() || 'diorama', menu: flags.ui, music, soundFlag: flags.sound });
   function apply() {
     renderer.setSize(L.w, L.h, false);
     rt.setSize(L.w, L.h); art.setSize(L.w, L.h);
@@ -174,6 +177,7 @@ export async function runDiorama(cfg) {
     last = now;
     watchSize(now);
     drawFrame(clock, state.paused ? 0 : dt);
+    music?.update(clock, state.paused);
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);

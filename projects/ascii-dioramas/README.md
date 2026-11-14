@@ -37,6 +37,7 @@ that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
 | `?view=render` / `?view=classes` | start in the plain 3D view, or the surface-class map |
 | `?res=phone` | render at a fixed resolution and letterbox it (see below) |
 | `?ui=off` | hide the menu button (keys and camera gestures still work) |
+| `?sound=on` / `?sound=off` | start the music on the first click or key, or leave it out entirely |
 
 Combine them: `/summit/?fox=still&tilt=off&t=8`.
 
@@ -47,11 +48,12 @@ Every scene can be explored by hand while its camera keeps sweeping:
 - **Drag** to orbit (up to ±80° around, 14°–86° elevation), **scroll** or
   **pinch** to zoom, **double-click** to reset.
 - A faint **menu button** in the top-right corner opens: back to all scenes,
-  ASCII / 3D / Classes view, tilt-shift on or off, pause, reset camera, and
+  ASCII / 3D / Classes view, tilt-shift on or off, sound, pause, reset camera, and
   **Record video**, which saves what the canvas shows (any view) as a WebM or
-  MP4 file. The title overlay and the menu are not part of the recording.
-- Keys: `M` menu, `V` next view, `T` tilt-shift, `Space` pause, `R` start/stop
-  recording, `0` or `Esc` reset camera.
+  MP4 file, with the music when it is on. The title overlay and the menu are not
+  part of the recording.
+- Keys: `M` menu, `V` next view, `T` tilt-shift, `S` sound, `Space` pause, `R`
+  start/stop recording, `0` or `Esc` reset camera.
 
 ### Screens
 
@@ -103,6 +105,7 @@ ascii-dioramas/
     glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
     display.js    resolutions, device profiles, render size and grid, camera framing
     title.js      scene title overlay
+    music.js      generative polyrhythm music: Web Audio instruments, reverb, beat scheduler
     controls.js   orbit and zoom gestures, hidden menu, keys, video recording
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
@@ -170,6 +173,48 @@ never drift.
   can write NaN into the half-float target and mipmapping spreads it as black squares.
 - **Particles**: petals and blown snow are instanced cards repositioned each
   frame from `fract(seed + t·speed)`, so they wrap.
+
+## Music
+
+Each scene has its own background music, off until the viewer presses `S` or
+picks **Sound** in the menu (browsers only start audio after a gesture). Once
+turned on it stays on from scene to scene. Every score is a polyrhythm: a few
+voices pulsing n₁ : n₂ : n₃ times over one shared cycle, so they drift apart and
+land together on every cycle boundary, where the beat is accented.
+
+| Scene | Polyrhythm | Cycle | Voices |
+|---|---|---|---|
+| `harbour` | 2 : 3 : 4 : 5 | 12 s | waves, bass mallet, a sparse marimba tune, an occasional bell buoy; F major pentatonic |
+| `mangroves` | 3 : 5 : 7 | 12 s | a few kalimba notes, scattered crickets and tree frogs over a breathing drone; E minor pentatonic |
+| `summit` | 2 : 3 : 5 | 12 s | two singing bowls a fifth apart, tingsha, a gust with flag flutter, low drone |
+| `temple-south` | tisra over Adi tala | 16 s | one avartanam of Adi tala per cycle: talam (clap, finger counts, wave), mridangam phrasing in threes (12 a cycle), veena in raga Mohanam (6 a cycle, 3 against 4) with slides and kampita, tanpura |
+| `torii` | 2 : 3 : 5 | 8 s | surf, fūrin chime, koto in the in scale on D, a bonshō each cycle |
+
+Like the motion, the music is a function of time: beat k of an n-voice falls at
+`t = k · cycle / n` on the scene clock and plays `notes[k mod notes.length]`, with
+a per-beat hash for velocity and optional skipped beats. Pausing stops it, and
+every cycle divides the 48 s camera sweep, so sound and picture loop together.
+Everything is synthesised (additive bells and bowls, Karplus–Strong strings for
+the veena and tanpura, modal mridangam strokes, noise swells, a generated reverb
+impulse); there are no samples.
+
+A scene adds a `music` score to its `runDiorama` config:
+
+```js
+music: {
+  tonic: 146.83, cycle: 8,                     // Hz; notes are semitones above it, null is a rest
+  reverb: { seconds: 6, wet: .4, tone: .55 },
+  pad: { notes: [-12, -5], gain: .03 },        // optional sustained drone
+  voices: [{ n: 5, inst: 'pluck', notes: [12, 13, null, 17], gain: .12, pan: .25, prob: .85 }, …],
+}
+```
+
+Instruments are `bell` (also bowls and chimes, via `partials` and `beat`),
+`string` (Karplus–Strong, with `bend` and `kampita` gamakas), `tanpura`,
+`mridangam` and `clap` (notes are stroke names: `thom`, `nam`, `dhin`, `ta`,
+`ki`, `gumki`; `clap`, `tap`), `pluck`, `mallet`, `tick`, `chirp` and `swell`;
+see `engine/music.js` for their options. A score may name its rhythm with `label`. `renderMusic(score, seconds)` renders a score offline, for
+checking levels.
 
 ## Inspiration
 

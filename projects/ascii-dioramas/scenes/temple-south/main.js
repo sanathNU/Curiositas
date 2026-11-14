@@ -212,7 +212,28 @@ const rules = /* glsl */`
   }`;
 
 const blades = bladeWind({ amp: .14, lean: 0, gust: .4, flutter: .2, flutterRate: 1.1, rate: .5 });
+// ---------- music: a slow Carnatic kriti texture in raga Mohanam, Adi tala ----------
+// One 16 s cycle is one avartanam of Adi tala (8 aksharas, 2 s each, vilambita kala). The talam
+// counts it: clap, three finger counts, clap, wave, clap, wave. Against it the mridangam phrases in
+// threes (12 strokes a cycle, 3 against 2 aksharas) and the veena sings every 4/3 of an akshara
+// (6 a cycle, 3 against 4), with slides and kampita shakes on held notes. All of them meet on samam,
+// the first beat. Tanpura plucks Pa–Sa–Sa–Sa₋ under everything. Sa is C♯ (138.6 Hz).
+// Three avartanams per camera sweep, so music and motion loop together.
+const MUSIC = {
+  tonic: 138.59, cycle: 16, volume: 1.8, label: 'tisra over Adi tala',
+  reverb: { seconds: 3.2, wet: .26, tone: .45 },
+  voices: [
+    { n: 4, inst: 'tanpura', notes: [-5, 0, 0, -12], gain: .42, pan: -.12, accent: 1, humanize: .08, decay: 9 },
+    { n: 8, inst: 'clap', notes: ['clap', 'tap', 'tap', 'tap', 'clap', null, 'clap', null], gain: .3, pan: .4, accent: 1.15, wet: .15 },
+    { n: 12, inst: 'mridangam', semi: 12, notes: ['dhin', null, 'ki', 'thom', 'nam', null, 'dhin', null, 'ta', 'gumki', null, 'ki'],
+      gain: .16, pan: .12, accent: 1.3, humanize: .2, wet: .18 },
+    { n: 6, inst: 'string', notes: [7, null, 9, 12, null, 16, 14, null, 12, 9, null, 7], gain: .7, pan: -.22, accent: 1.1,
+      decay: 4.5, bend: 2, bendProb: .3, kampita: .35, body: 220 },
+  ],
+};
+
 runDiorama({
+  music: MUSIC,
   title: 'Temple', size: [1080, 1920], grid: [200, 178], sky: '#e6d2a8',
   light: { sun: { color: '#ffd8a0', intensity: 3.2, position: [-28, 40, 18], target: [0, 4, -2] }, sky: ['#e8d8b8', '#5a5830', 1.2] },
   camera: { target: [0, 5.2, 2], radius: 74, elevation: 54, wobble: 1.2 },

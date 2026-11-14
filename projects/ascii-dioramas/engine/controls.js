@@ -1,8 +1,8 @@
 // Viewer controls: orbit and zoom the camera by hand, plus a hidden menu (small corner button)
-// with back to home, ASCII / 3D / class view, tilt-shift, pause, camera reset and recording.
+// with back to home, ASCII / 3D / class view, tilt-shift, sound, pause, camera reset and recording.
 //
 //   drag            orbit around the scene (pinch or scroll to zoom, double-click resets)
-//   M  V  T  Space  R  0/Esc   menu, next view, tilt-shift, pause, record, reset camera
+//   M  V  T  S  Space  R  0/Esc   menu, next view, tilt-shift, sound, pause, record, reset camera
 import { VIEWS } from './glyphs.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -36,8 +36,10 @@ const CSS = `
 /**
  * `state` is shared with the frame loop: { view (index into VIEWS), tilt, paused, orbit: { yaw, el, zoom } }.
  * `menu` false keeps gestures and keys but hides the menu button (?ui=off).
+ * `music` (engine/music.js) adds a sound toggle; it starts on the first click or key when the viewer
+ * turned it on in an earlier scene, or with ?sound=on (browsers allow audio only after a gesture).
  */
-export function mountControls(stage, canvas, state, { name, menu = true }) {
+export function mountControls(stage, canvas, state, { name, menu = true, music = null, soundFlag = null }) {
   const style = document.createElement('style'); style.textContent = CSS; document.head.append(style);
   const resetOrbit = () => Object.assign(state.orbit, { yaw: 0, el: 0, zoom: 1 });
 
@@ -74,9 +76,12 @@ export function mountControls(stage, canvas, state, { name, menu = true }) {
   let rec = null, recStart = 0;
   function toggleRecord() {
     if (rec) { rec.stop(); return; }
-    const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(t => window.MediaRecorder?.isTypeSupported?.(t));
+    const audio = music?.on ? music.stream()?.getAudioTracks() ?? [] : [];
+    const types = audio.length ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'] : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+    const type = types.find(t => window.MediaRecorder?.isTypeSupported?.(t));
     if (!type || !canvas.captureStream) { hint('This browser cannot record the canvas', 3000); return; }
     const stream = canvas.captureStream(30), chunks = [];
+    audio.forEach(t => stream.addTrack(t.clone())); // clones: stopping them afterwards leaves the music running
     rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 16e6 });
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
     rec.onstop = () => {
@@ -92,7 +97,7 @@ export function mountControls(stage, canvas, state, { name, menu = true }) {
   // ---- menu ----
   let menuBtn = null, panel = null;
   const viewButtons = [];
-  let tiltB, pauseB, recB;
+  let tiltB, soundB, pauseB, recB;
   function openMenu() { if (!panel) return; panel.hidden = false; menuBtn.setAttribute('aria-expanded', 'true'); }
   function closeMenu() { if (!panel || panel.hidden) return; panel.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); }
   if (menu) {
@@ -119,6 +124,7 @@ export function mountControls(stage, canvas, state, { name, menu = true }) {
     });
     panel.append(views);
     tiltB = item('Tilt-shift', 'T', () => { state.tilt = !state.tilt; });
+    if (music) soundB = item('Sound', 'S', toggleSound);
     pauseB = item('Pause', 'Space', () => { state.paused = !state.paused; });
     item('Reset camera', '0', resetOrbit);
     recB = item('Record video', 'R', toggleRecord, 'rec');
@@ -131,11 +137,33 @@ export function mountControls(stage, canvas, state, { name, menu = true }) {
     if (!panel) return;
     viewButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(state.view === i)));
     tiltB.setAttribute('aria-pressed', String(state.tilt)); tiltB.firstChild.textContent = state.tilt ? 'Tilt-shift on' : 'Tilt-shift off';
+    if (soundB) { soundB.setAttribute('aria-pressed', String(music.on)); soundB.firstChild.textContent = music.on ? `Sound on · ${music.label}` : 'Sound off'; }
     pauseB.firstChild.textContent = state.paused ? 'Play' : 'Pause';
     recB.setAttribute('aria-pressed', String(!!rec));
     if (!rec) recB.firstChild.textContent = 'Record video';
   }
   setInterval(() => { if (rec && recB) { const s = (performance.now() - recStart) / 1000 | 0; recB.firstChild.textContent = `Stop recording ${s / 60 | 0}:${String(s % 60).padStart(2, '0')}`; } }, 250);
+
+  // ---- sound ----
+  const SOUND_KEY = 'dio-sound';
+  const remember = (v) => { try { localStorage.setItem(SOUND_KEY, v ? 'on' : 'off'); } catch {} };
+  function toggleSound() {
+    const now = music.toggle(); remember(now);
+    hint(now ? `Sound on · ${music.label} polyrhythm` : 'Sound off', 2200);
+  }
+  if (music) {
+    let want = soundFlag === 'on';
+    try { want ||= soundFlag === null && localStorage.getItem(SOUND_KEY) === 'on'; } catch {}
+    if (want) {
+      // a pointer or key press other than S itself unlocks audio; S toggles on its own
+      const start = (e) => {
+        if (e.type === 'keydown' && e.key.toLowerCase() === 's') return;
+        removeEventListener('pointerdown', start, true); removeEventListener('keydown', start, true);
+        if (!music.on) { music.enable(); sync(); }
+      };
+      addEventListener('pointerdown', start, true); addEventListener('keydown', start, true);
+    } else setTimeout(() => { if (!music.on) hint('Press S, or open the menu, for sound', 3500); }, 1200);
+  }
 
   // ---- keys ----
   addEventListener('keydown', (e) => {
@@ -144,6 +172,7 @@ export function mountControls(stage, canvas, state, { name, menu = true }) {
     else if (k === 'm') panel?.hidden ? openMenu() : closeMenu();
     else if (k === 'v') state.view = (state.view + 1) % VIEWS.length;
     else if (k === 't') state.tilt = !state.tilt;
+    else if (k === 's' && music) toggleSound();
     else if (k === 'r') toggleRecord();
     else if (k === '0') resetOrbit();
     else if (k === 'escape') { if (panel && !panel.hidden) closeMenu(); else resetOrbit(); }

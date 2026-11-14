@@ -166,7 +166,24 @@ const rules = /* glsl */`
   }`;
 
 const blades = bladeWind({ amp: .16, lean: 0, gust: .45, flutter: .22, flutterRate: 1.2, rate: .55 });
+// ---------- music: in-scale koto, wind chimes and surf ----------
+// 2 : 3 : 5 over an 8 s cycle, in the Japanese in scale on D (D E♭ G A B♭). Waves break twice a
+// cycle, the fūrin chime three times, the koto plucks five; a deep bonshō marks each cycle.
+const MUSIC = {
+  tonic: 146.83, cycle: 8, reverb: { seconds: 6, wet: .4, tone: .55 },
+  voices: [
+    { n: 2, inst: 'swell', freq: 900, gain: .09, rise: 1.6, fall: 3.4, accent: 1.1, wet: .2 },
+    { n: 3, inst: 'bell', notes: [36, 43, 41], gain: .04, pan: -.42, prob: .7, decay: 2.2,
+      partials: [[1, 1, 1], [2.42, .35, .5], [5.9, .15, .25]] },
+    { n: 5, inst: 'pluck', notes: [12, 13, null, 17, 19, 20, null, 19, 17, 13], gain: .12, pan: .26, prob: .85,
+      wave: 'triangle', bright: 12, damp: .12, decay: 2.2, bend: 1, bendProb: .2 },
+    { n: 1, inst: 'bell', notes: [-12], gain: .16, decay: 9, attack: .03, beat: .7, accent: 1,
+      partials: [[1, 1, 1], [2.71, .45, .7], [5.15, .2, .45], [8.43, .07, .25]] },
+  ],
+};
+
 runDiorama({
+  music: MUSIC,
   title: 'Torii', size: [1080, 1920], grid: [200, 178], sky: '#cfdcea',
   light: { sun: { color: '#ffe2b8', intensity: 3.5, position: [-30, 44, 20], target: [0, 4, -2] }, sky: ['#f0e0c8', '#6d6236', 1.1] },
   camera: { target: [0, 5.4, 3] },

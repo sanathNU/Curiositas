@@ -122,7 +122,7 @@ export function homepageHtml(scenes, { base = '', home = 'https://github.com/san
   <ul class="scenes">
 ${items}
   </ul>
-  <p class="note">Scenes fill any screen, phone to ultrawide. Space pauses. Add <code>?fox=still</code>, <code>?fox=off</code>, <code>?tilt=off</code>, <code>?title=off</code>, <code>?t=12</code> (frozen at 12&nbsp;s) or <code>?res=phone</code> (also <code>tablet</code>, <code>laptop</code>, <code>desktop</code>, <code>4k</code>, <code>ultrawide</code>, <code>1280x720</code>) to any scene's address.</p>
+  <p class="note">Scenes fill any screen, phone to ultrawide. <kbd>S</kbd> plays each scene's own polyrhythmic music. Space pauses. Add <code>?fox=still</code>, <code>?fox=off</code>, <code>?tilt=off</code>, <code>?title=off</code>, <code>?t=12</code> (frozen at 12&nbsp;s) or <code>?res=phone</code> (also <code>tablet</code>, <code>laptop</code>, <code>desktop</code>, <code>4k</code>, <code>ultrawide</code>, <code>1280x720</code>) to any scene's address.</p>
 
   <h2>About</h2>
   <div class="about">

@@ -168,7 +168,26 @@ const rules = /* glsl */`
     if(mag>.2) gl = edgeG;
   }`;
 
+// ---------- music: singing bowls and wind at altitude ----------
+// 2 : 3 : 5 over a slow 12 s cycle. Two singing bowls a fifth apart (D, A) ring 2 and 3 times,
+// a pair of slightly mistuned tingsha cymbals answers 5 times (sparsely), a low dungchen-like drone
+// sits underneath, and a gust with flag flutter swells once a cycle.
+const MUSIC = {
+  tonic: 146.83, cycle: 12, reverb: { seconds: 7, wet: .45, tone: .6 },
+  pad: { notes: [-12, -5], gain: .026, cutoff: 480, breathe: .05 },
+  voices: [
+    { n: 2, inst: 'bell', notes: [12], gain: .11, pan: -.25, decay: 11, attack: .05, beat: 1.2, accent: 1.15,
+      partials: [[1, 1, 1], [2.71, .45, .7], [5.15, .2, .45], [8.43, .07, .25]] },
+    { n: 3, inst: 'bell', notes: [19], gain: .08, pan: .25, decay: 10, attack: .05, beat: 1.6, accent: 1.15,
+      partials: [[1, 1, 1], [2.71, .45, .7], [5.15, .2, .45], [8.43, .07, .25]] },
+    { n: 5, inst: 'bell', notes: [36], gain: .03, pan: .45, prob: .45, decay: 3.5, beat: 7,
+      partials: [[1, 1, 1], [2.9, .4, .4], [6.1, .2, .2]] },
+    { n: 1, inst: 'swell', freq: 700, filter: 'bandpass', q: 1.1, flutter: .35, gain: .14, rise: 3.5, fall: 5, accent: 1, wet: .25 },
+  ],
+};
+
 runDiorama({
+  music: MUSIC,
   title: 'Summit', size: [1080, 1920], grid: [200, 178], sky: '#a8c8f0',
   // bright midday: strong warm-white sun, clear blue sky fill
   light: { sun: { color: '#fff6e6', intensity: 4.4, position: [C.x - 20, 58, C.z + 28], target: [C.x, 4, C.z] }, sky: ['#c6dcff', '#8a7a52', 1.8], shadowFar: 150 },
