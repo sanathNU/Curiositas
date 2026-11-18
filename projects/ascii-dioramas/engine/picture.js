@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { g } from './glyphs.js';
 import { glf } from './noise.js';
-import { runDiorama } from './run.js';
+import { runDiorama, readFlags } from './run.js';
+import { estimateDepth } from './depth-browser.js';
 
 /** Classes a picture is split into (the class view colours them with CLASS_COLORS). */
 export const PIC_CLS = { sky: 1, water: 2, foliage: 3, warm: 4, sand: 5, ground: 6, dark: 7, bright: 8, wall: 9 };
@@ -128,7 +129,8 @@ uniform sampler2D uDepth; uniform float uFocus; uniform vec2 uBlur;
 varying vec2 vUv;
 void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,1.).r-uFocus)),1.6); gl_FragColor = vec4(k,k,k,1.); }`,
   });
-  const segs = parallax && depthTex ? 360 : 1;
+  const hasDepth = () => uniforms.uHasDepth.value > .5;
+  const segs = parallax ? 360 : 1; // depth may arrive later (estimated in the browser)
   const geo = new THREE.PlaneGeometry(1, 1, segs, Math.max(1, Math.round(segs / imgAspect())));
   const mesh = new THREE.Mesh(geo, colorMat); mesh.frustumCulled = false;
   const scene = new THREE.Scene(); scene.add(mesh);
@@ -141,7 +143,7 @@ void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,
   let screenAspect = 1;
   const resize = (a = screenAspect) => {
     screenAspect = a;
-    const tx0 = tan0 * imgAspect(), margin = parallax && depthTex ? .95 : 1; // crop a little: the repeated edge pixels stay out of view
+    const tx0 = tan0 * imgAspect(), margin = parallax && hasDepth() ? .95 : 1; // crop a little: the repeated edge pixels stay out of view
     const ty = (a > imgAspect() ? tx0 / a : tan0) * margin;                 // cover: crop whichever side overflows
     camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(ty)); camera.aspect = a; camera.updateProjectionMatrix();
     uniforms.uTan.value.set(tx0, tan0);
@@ -149,7 +151,7 @@ void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,
   const D = THREE.MathUtils.degToRad, pivot = new THREE.Vector3();
   /** Slow automatic sway plus a damped share of the viewer's own orbit and zoom. */
   function update(t, dt, state) {
-    const on = parallax && depthTex, o = state?.orbit ?? { yaw: 0, el: 0, zoom: 1 };
+    const on = parallax && hasDepth(), o = state?.orbit ?? { yaw: 0, el: 0, zoom: 1 };
     const yaw = on ? D(sway[0] * Math.sin(t * .3) + THREE.MathUtils.clamp(o.yaw * .1, -6, 6)) : 0;
     const el = on ? D(sway[1] * Math.sin(t * .23 + 1) + THREE.MathUtils.clamp(o.el * .1, -4, 4)) : 0;
     const R = focusZ() * (on ? THREE.MathUtils.clamp(o.zoom, .75, 1.1) : 1);
@@ -157,22 +159,31 @@ void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,
     camera.position.set(Math.sin(yaw) * Math.cos(el) * R, Math.sin(el) * R, -focusZ() + Math.cos(yaw) * Math.cos(el) * R);
     camera.lookAt(pivot); camera.updateMatrixWorld();
   }
-  return {
+  const src = {
     scene, camera, resize, update,
+    /** Bumped on every picture or depth change, so a paused frame still redraws. */
+    version: 0,
+    hasDepth,
     /** Per-pixel tilt-shift strength for the tilt pass (run.js); only while a depth map is in use. */
     blur: {
       texture: blurRT.texture,
-      get enabled() { return uniforms.uHasDepth.value > .5; },
+      get enabled() { return hasDepth(); },
       setSize(w, h) { blurRT.setSize(Math.max(1, w >> 2), Math.max(1, h >> 2)); },
       render(renderer) { renderer.setRenderTarget(blurRT); renderer.setClearColor(0xffffff, 1); renderer.clear(); renderer.render(blurScene, camera); },
     },
-    /** Swap the picture. A dropped image has no depth map, so it is shown flat. */
+    /** Swap the picture; without a depth map it is shown flat until setDepth(). */
     setImage(t, depth = null) {
       const old = uniforms.uImg.value; uniforms.uImg.value = texture = t;
+      src.setDepth(depth); if (old !== t) old.dispose();
+    },
+    setDepth(depth) {
+      const old = uniforms.uDepth.value;
       uniforms.uDepth.value = depth ?? black; uniforms.uHasDepth.value = depth ? 1 : 0;
-      resize(); if (old !== t) old.dispose();
+      if (old !== black && old !== depth) old.dispose();
+      resize(); src.version++;
     },
   };
+  return src;
 }
 
 const loadTexture = (url, srgb = true) => new THREE.TextureLoader().loadAsync(url).then(t => {
@@ -182,8 +193,11 @@ const loadTexture = (url, srgb = true) => new THREE.TextureLoader().loadAsync(ur
 
 /**
  * Run a picture as a diorama. `src` is any image URL the page may load; `depth` an optional
- * depth map for it (tools/depth.py: white near, black far); `cell` is the glyph cell size in
- * image pixels. Dropping an image file on the page swaps the picture (shown flat).
+ * depth map for it (tools/depth.py: white near, black far), or 'auto' to estimate one in the
+ * browser right away; `cell` is the glyph cell size in image pixels. Dropping an image file on
+ * the page swaps the picture. A picture without depth shows flat, with an "Add depth" button
+ * that estimates it on this device (depth-browser.js); after the first time, dropped pictures
+ * get depth automatically.
  * Classifier: `horizon` (0 bottom .. 1 top, used without depth), `smooth`, `gray`, `skyDepth`,
  * `groundSlope`. Depth: `near`, `far`, `focus` (inverse depth in focus), `blur` ([sharp, full]
  * distance from focus), `sway` (auto camera sway in degrees), `parallax`. `rules`, `glyphs` and
@@ -191,10 +205,13 @@ const loadTexture = (url, srgb = true) => new THREE.TextureLoader().loadAsync(ur
  */
 export async function runPicture({ src, depth = null, title, cell = [6, 12], horizon = .4, smooth = .035, gray = .16, skyDepth = .03, groundSlope = .3,
   rules = pictureRules, glyphs = {}, tilt = { focus: .4, start: .2, end: .55 }, ...depthOpts }) {
-  const [texture, depthTex] = await Promise.all([loadTexture(src), depth ? loadTexture(depth, false) : null]);
+  const auto = depth === 'auto';
+  const [texture, depthTex] = await Promise.all([loadTexture(src), depth && !auto ? loadTexture(depth, false) : null]);
   const { width: w, height: h } = texture.image;
   const source = pictureSource(texture, depthTex, { horizon, smooth, gray, skyDepth, groundSlope, ...depthOpts });
-  addDrop(source);
+  const button = depthButton(source, src, { show: readFlags().ui });
+  addDrop(source, button);
+  if (auto) button.run();
   return runDiorama({
     title, size: [w, h], grid: [Math.round(w / cell[0]), Math.round(h / cell[1])],
     source, tilt,
@@ -202,14 +219,60 @@ export async function runPicture({ src, depth = null, title, cell = [6, 12], hor
   });
 }
 
-/** Drag an image file onto the page to see it as glyphs. */
-function addDrop(source) {
+/** Drag an image file onto the page to see it as glyphs; once depth has been used, it is estimated too. */
+function addDrop(source, button) {
+  let lastUrl = null;
   addEventListener('dragover', (e) => e.preventDefault());
   addEventListener('drop', async (e) => {
     e.preventDefault();
     const f = [...(e.dataTransfer?.files ?? [])].find(f => f.type.startsWith('image/'));
     if (!f) return;
-    const url = URL.createObjectURL(f);
-    try { source.setImage(await loadTexture(url)); } finally { URL.revokeObjectURL(url); }
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    const url = lastUrl = URL.createObjectURL(f);
+    source.setImage(await loadTexture(url));
+    button.picture(url);
   });
+}
+
+const BUTTON_CSS = `position:fixed;left:14px;bottom:14px;z-index:20;padding:6px 11px;border-radius:3px;cursor:pointer;
+  font:italic 15px/1.3 "EB Garamond",Garamond,Georgia,serif;color:#f2e6cc;background:rgba(20,16,12,.6);
+  border:1px solid rgba(242,230,204,.28);box-shadow:0 4px 16px rgba(0,0,0,.35)`;
+
+/**
+ * "Add depth" control for pictures without a depth map. Nothing is downloaded until it is
+ * clicked (or ?depth=auto). After one success, later pictures get depth without asking.
+ */
+function depthButton(source, firstUrl, { show }) {
+  const el = document.createElement('button');
+  el.type = 'button'; el.style.cssText = BUTTON_CSS;
+  let url = firstUrl, busy = false, enabled = false;
+  const idle = () => {
+    el.textContent = 'Add depth · runs on this device, about 50 MB once';
+    el.title = 'Estimates a depth map with Depth Anything V2 Small in your browser. The picture stays on this device.';
+  };
+  const visible = () => { el.style.display = show && (busy || !source.hasDepth()) ? '' : 'none'; };
+  async function run() {
+    if (busy) return;
+    busy = true; enabled = true; el.disabled = true; visible();
+    const target = url;
+    try {
+      const tex = await estimateDepth(target, {
+        onStage: (s) => { el.textContent = s === 'loading' ? 'Loading depth model…' : 'Estimating depth…'; },
+        onProgress: ({ loaded, total }) => { if (total > 1e6) el.textContent = `Loading depth model ${(loaded / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB`; },
+      });
+      if (target === url) source.setDepth(tex); else tex.dispose(); // a newer picture arrived meanwhile
+      busy = false; idle();
+      if (target !== url) run();
+    } catch (e) {
+      console.error(e);
+      busy = false; enabled = false; el.textContent = `Depth failed: ${e.message ?? e}. Try again?`;
+    } finally { el.disabled = false; visible(); }
+  }
+  el.addEventListener('click', run);
+  idle(); document.body.append(el); visible();
+  return {
+    run,
+    /** A new picture was shown (flat): estimate right away if depth is already in use. */
+    picture(next) { url = next; if (enabled) run(); else { idle(); visible(); } },
+  };
 }

@@ -159,8 +159,24 @@ With it, three things change:
 
 Depth doesn't fix water versus paving: both are flat ground. `?depth=off` shows
 the flat version, `?parallax=off` keeps depth classes and blur but stops the
-sway, and `?depth=<url>` pairs a depth map with `?img=`. A dropped image has no
-depth map, so it shows flat.
+sway, and `?depth=<url>` pairs a depth map with `?img=`.
+
+**Depth in the browser.** A picture without a depth map (a dropped file, or
+`?img=` alone) shows flat, with an **Add depth** button in the corner. Clicking
+it runs the same model in the page through
+[Transformers.js](https://github.com/huggingface/transformers.js)
+(`engine/depth-browser.js`):
+
+- The picture never leaves the device. The library, ONNX Runtime and the
+  weights come from jsDelivr and Hugging Face once (about 50 MB), then the
+  browser caches them. Nothing loads until the button is clicked, or
+  `?depth=auto` asks for it.
+- On WebGPU with half floats it runs the 19 MB `q4f16` weights. On this
+  laptop that took about 3 s the first time, including the download, and
+  about 0.15 s for each later picture. Everywhere else it runs the 27 MB `int8`
+  weights in WebAssembly, about 5 s per picture, and the page pauses meanwhile.
+  ONNX Runtime's worker mode avoided the pause but measured about 6× slower.
+- After the first success, later dropped pictures get depth automatically.
 
 ## Project structure
 
@@ -179,6 +195,7 @@ ascii-dioramas/
     controls.js   orbit and zoom gestures, hidden menu, keys, video recording
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
     picture.js    runPicture: a photo as the source, colour-based surface classes, default glyph rules
+    depth-browser.js  depth estimation in the page (Transformers.js, Depth Anything V2 Small)
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
   serve.mjs       dev server

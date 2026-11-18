@@ -215,7 +215,7 @@ export async function runDiorama(cfg) {
   // Frames are capped at the tier's rate. While paused nothing moves, so a frame is drawn only
   // when the view changes (orbit, zoom, menu toggles, resize, tier).
   let clock = flags.freeze ?? 0, last = performance.now(), drawnKey = '';
-  const viewKey = () => `${state.view}|${state.tilt}|${state.orbit.yaw}|${state.orbit.el}|${state.orbit.zoom}|${W}x${Hh}|${Q.name}`;
+  const viewKey = () => `${state.view}|${state.tilt}|${state.orbit.yaw}|${state.orbit.el}|${state.orbit.zoom}|${W}x${Hh}|${Q.name}|${src?.version ?? 0}`;
   const loop = (now) => {
     requestAnimationFrame(loop);
     watchSize(now);
