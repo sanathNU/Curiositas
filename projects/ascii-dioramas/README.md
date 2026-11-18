@@ -113,6 +113,27 @@ resize, rotation, or a move to a monitor with a different pixel ratio.
 | `summit` | Himalayan summit: prayer flags in the wind above a sea of cloud | 9:16 | 5.4 × 10.8 px |
 | `temple-south` | South Indian temple: gopuram towers, ghats, Nandi, pushkarini | 9:16 | 5.4 × 10.8 px |
 | `torii` | Senbon torii: vermilion gates and stone lanterns down a cliff to the sea | 9:16 | 5.4 × 10.8 px |
+| `picture` | Any picture drawn as glyphs (default: Venice waterfront at sunset) | the image's own | 6 × 12 image px |
+
+### Pictures
+
+`/picture/` runs a photo through the same glyph and tilt-shift passes. The
+photo takes the place of the 3D render, and each pixel's surface class is
+guessed from its colour, its local texture and its height in the frame:
+
+- smooth areas above the horizon line are **sky**, whatever their hue
+- unsaturated pixels are **stone**, or **bright** when near white
+- other hues become **water** (blue), **foliage** (green, dim olive),
+  **sand** (straw, ochre) or **warm** (reds, browns)
+
+Each class has a default glyph family. `?img=<url>` loads another image (same
+origin, or a server that allows cross-origin loads), and dropping an image file
+on the page swaps it. `?view=classes` shows the guess. `runPicture()` in
+`engine/picture.js` takes the horizon, thresholds, rules and tilt settings.
+
+Colour alone has limits. In the Venice photo, dusk-grey water and blue-tinted
+paving share a colour, so the water reads as stone, and its orange sunset
+glints read as warm. Telling those apart needs a segmentation or depth model.
 
 ## Project structure
 
@@ -130,6 +151,7 @@ ascii-dioramas/
     music.js      generative polyrhythm music: Web Audio instruments, reverb, beat scheduler
     controls.js   orbit and zoom gestures, hidden menu, keys, video recording
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
+    picture.js    runPicture: a photo as the source, colour-based surface classes, default glyph rules
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
   serve.mjs       dev server
@@ -137,6 +159,7 @@ ascii-dioramas/
   assets/
     models/Fox.glb   animated fox
     tex/*.jpg        ground textures (Poly Haven)
+    pictures/*.jpg   test pictures for /picture/
     thumbs/*.jpg     homepage thumbnails
 ```
 
@@ -255,4 +278,5 @@ Everything else (terrain, props, water, clouds, the glyph atlas) is generated in
 | Asset | Source | Licence |
 |---|---|---|
 | Ground textures (`tex/*.jpg`) | [Poly Haven](https://polyhaven.com) | CC0 |
+| Venice photo (`pictures/venice.jpg`), cropped from the tonemapped `venice_sunset` HDRI | [Poly Haven](https://polyhaven.com/a/venice_sunset) | CC0 |
 | Fox model (`Fox.glb`) | [Khronos glTF samples](https://github.com/KhronosGroup/glTF-Sample-Models) | CC-BY 4.0 |

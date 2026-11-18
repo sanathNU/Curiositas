@@ -91,6 +91,9 @@ async function loadCreature(scene, c, mode) {
 /**
  * Run a diorama. `build(scene)` adds everything and may return update(t, dt) for per-frame work.
  * See README for each option; scenes/summit/main.js is the most complete example.
+ * Instead of `build`, `source` ({ scene, camera, resize?(aspect), update?(t, dt) }) supplies a
+ * ready-made scene that writes colour and class into the render target, e.g. a picture (picture.js);
+ * then there are no lights, shadows, creature or camera sweep.
  */
 export async function runDiorama(cfg) {
   // `size` is the frame the scene was composed for and `grid` its glyph density there;
@@ -109,16 +112,17 @@ export async function runDiorama(cfg) {
   const autoTier = !TIERS[flags.q];
   setTier(autoTier ? detectTier(renderer, L.profile) : flags.q);
 
-  const scene = new THREE.Scene();
-  const sun = addLights(scene, cfg.light);
-  const update = await cfg.build(scene);
-  const creature = cfg.creature && flags.fox !== 'off' ? await loadCreature(scene, cfg.creature, flags.fox) : null;
+  const src = cfg.source;
+  const scene = src ? src.scene : new THREE.Scene();
+  const sun = src ? null : addLights(scene, cfg.light);
+  const update = src ? src.update : await cfg.build(scene);
+  const creature = !src && cfg.creature && flags.fox !== 'off' ? await loadCreature(scene, cfg.creature, flags.fox) : null;
 
   // far plane reaches the horizon of the extended sea/cloud plane on low orbits
-  const camera = new THREE.PerspectiveCamera(cfg.camera.fov ?? 23, 1, 5, 1500);
+  const camera = src ? src.camera : new THREE.PerspectiveCamera(cfg.camera.fov ?? 23, 1, 5, 1500);
   const sky = new THREE.Color(cfg.sky ?? '#000000');
   let camDist = 1;
-  const placeCamera = sweepCamera(camera, cfg.camera, duration, () => camDist, state.orbit);
+  const placeCamera = src ? () => {} : sweepCamera(camera, cfg.camera, duration, () => camDist, state.orbit);
 
   // rt: the 3D render, at a few texels per glyph cell (full screen size only for the plain render view);
   // cells: one texel per glyph cell (cell step output); art: the glyph image the tilt pass blurs.
@@ -161,9 +165,10 @@ export async function runDiorama(cfg) {
     tilt.uniforms.uRes.value.set(W, Hh);
     tilt.uniforms.uMaxR.value = (cfg.tilt?.maxR ?? 26) * Hh / frame[1];
     tilt.uniforms.uTaps.value = Q.taps;
-    if (sun.shadow.mapSize.x !== Q.shadow) { sun.shadow.mapSize.set(Q.shadow, Q.shadow); sun.shadow.map?.dispose(); sun.shadow.map = null; }
+    if (sun && sun.shadow.mapSize.x !== Q.shadow) { sun.shadow.mapSize.set(Q.shadow, Q.shadow); sun.shadow.map?.dispose(); sun.shadow.map = null; }
     shadowDirty = true;
-    camDist = frameCamera(camera, frame[0] / frame[1], L.w / L.h, cfg.camera);
+    if (src) src.resize?.(L.w / L.h);
+    else camDist = frameCamera(camera, frame[0] / frame[1], L.w / L.h, cfg.camera);
     const a = L.w / L.h;
     Object.assign(stage.style, L.fill
       ? { width: '100vw', height: '100dvh' }

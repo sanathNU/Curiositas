@@ -15,6 +15,7 @@ export const SCENE_META = {
   mangroves: { title: 'Mangroves', desc: 'Dusk in a mangrove swamp: a lantern-lit boardwalk to a stilt hut, trees on arching prop roots', canvas: 'composed 9:16' },
   summit: { title: 'Summit', desc: 'Himalayan summit: prayer flags streaming in the wind above a sea of cloud', canvas: 'composed 9:16' },
   'temple-south': { title: 'Temple South', desc: 'South Indian temple: gopuram towers, Nandi, pushkarini', canvas: 'composed 9:16' },
+  picture: { title: 'Picture', desc: 'Any picture drawn as glyphs: colours sorted into surfaces, the same glyph and tilt-shift passes', canvas: 'any image' },
   torii: { title: 'Torii', desc: 'Senbon torii: vermilion gates and stone lanterns down a cliff to the sea', canvas: 'composed 9:16' },
 };
 const meta = (name) => SCENE_META[name] ?? { title: name, desc: '', canvas: '' };
