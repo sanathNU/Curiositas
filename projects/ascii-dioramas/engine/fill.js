@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, fbm } from './noise.js';
 import { tag } from './materials.js';
+import { thin } from './quality.js';
 
 /** Rejection-sample up to `count` spots in `area` [x0, x1, z0, z1] that pass `accept(x, z, y)`. */
 function scatter({ count, area, H, rnd, accept, guard = 6e6 }, place) {
@@ -31,7 +32,7 @@ export function grass(scene, { cls, wind, height = [.3, .28], color, ...opts }) 
     o.scale.set(1.5, height[0] + rnd() * height[1], 1.5); o.updateMatrix(); im.setMatrixAt(i, o.matrix);
     color(c, x, z, rnd); im.setColorAt(i, c);
   });
-  im.receiveShadow = true; scene.add(im);
+  im.receiveShadow = true; scene.add(thin(im));
   return im;
 }
 
@@ -44,7 +45,7 @@ export function flowers(scene, { cls, wind, size = .14, lift = [.2, .16], scale 
     o.position.set(x, y + lift[0] + rnd() * lift[1], z); o.rotation.y = rnd() * 6.28; o.scale.setScalar(scale[0] + rnd() * scale[1]); o.updateMatrix(); im.setMatrixAt(i, o.matrix);
     color(c, rnd); im.setColorAt(i, c);
   });
-  im.receiveShadow = true; scene.add(im);
+  im.receiveShadow = true; scene.add(thin(im));
   return im;
 }
 

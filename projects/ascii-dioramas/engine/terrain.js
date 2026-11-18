@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { clamp, sstep, fract, GLSL_NOISE, glf, glv3 } from './noise.js';
 import { time } from './materials.js';
+import { Q } from './quality.js';
 
 export const BOUNDS = { X0: -45, X1: 45, Z0: -52, Z1: 42, FW: 600, FH: 626 };
 
@@ -25,13 +26,28 @@ export function buildLand({ rawH, path, pathFloor = -Infinity, bounds = BOUNDS }
   pathS.forEach(s => { s.y = Math.max(s.y, pathFloor); });
 
   const fD = new Float32Array(FW * FH), fY = new Float32Array(FW * FH), fH = new Float32Array(FW * FH);
-  for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
-    const x = X0 + (X1 - X0) * i / (FW - 1), z = Z0 + (Z1 - Z0) * j / (FH - 1);
-    let best = 1e9, by = 0;
-    for (let k = 0; k < pathS.length; k += 3) { const s = pathS[k], d = (s.x - x) ** 2 + (s.z - z) ** 2; if (d < best) { best = d; by = s.y; } }
-    const D = Math.sqrt(best), k = sstep(3, 1.4, D);
-    fD[j * FW + i] = D; fY[j * FW + i] = by;
-    fH[j * FW + i] = rawH(x, z) * (1 - k) + (by - .03) * k;
+  // Nearest trail sample per grid point. Per row, samples are visited in order of their z distance
+  // and the search stops once that alone exceeds the best match: exact, and far fewer distance tests.
+  const pick3 = pathS.filter((_, k) => k % 3 === 0), n = pick3.length;
+  const sx = Float64Array.from(pick3, s => s.x), sz = Float64Array.from(pick3, s => s.z), sy = Float64Array.from(pick3, s => s.y);
+  const order = new Uint32Array(n), dz2 = new Float64Array(n);
+  for (let j = 0; j < FH; j++) {
+    const z = Z0 + (Z1 - Z0) * j / (FH - 1);
+    for (let k = 0; k < n; k++) { order[k] = k; dz2[k] = (sz[k] - z) ** 2; }
+    order.sort((a, b) => dz2[a] - dz2[b] || a - b);
+    for (let i = 0; i < FW; i++) {
+      const x = X0 + (X1 - X0) * i / (FW - 1);
+      let best = 1e9, bk = 0;
+      for (let q = 0; q < n; q++) {
+        const k = order[q], dz = dz2[k];
+        if (dz > best) break;
+        const d = (sx[k] - x) ** 2 + dz;
+        if (d < best || (d === best && k < bk)) { best = d; bk = k; }
+      }
+      const D = Math.sqrt(best), by = sy[bk], kk = sstep(3, 1.4, D), o = j * FW + i;
+      fD[o] = D; fY[o] = by;
+      fH[o] = rawH(x, z) * (1 - kk) + (by - .03) * kk;
+    }
   }
   const samp = (f, x, z) => {
     const u = clamp((x - X0) / (X1 - X0)) * (FW - 1), v = clamp((z - Z0) / (Z1 - Z0)) * (FH - 1);
@@ -64,25 +80,38 @@ function pixels(img, w, h) {
 const pick = (t, x, z, m) => { const o = (((fract(z / m) * t.h) | 0) * t.w + ((fract(x / m) * t.w) | 0)) * 4; return [t.d[o], t.d[o + 1], t.d[o + 2]]; };
 
 /**
+ * Let the browser breathe during long bakes: resolves on the next task. A message rather than
+ * setTimeout, which background tabs throttle to one call a second.
+ */
+const nextTask = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+
+/**
  * Terrain mesh with a baked colour texture and a nearest-filtered class texture.
  * `paint(x, z, y, pathD, T, pick)` returns [r, g, b, cls] for each texel; T holds the named
  * textures' pixels (assets/tex/<name>.jpg, read into JS at 512²).
+ * Texture size and mesh detail scale with the quality tier (Q.paint, Q.mesh); the bake yields to
+ * the browser every ~40 ms so the page never locks up in one long task.
  */
-export async function terrainMesh(land, { textures, paint, size = [2048, 2140] }) {
+export async function terrainMesh(land, { textures, paint, size = [2048, 2140], segments = [480, 500] }) {
   const { X0, X1, Z0, Z1 } = land.bounds;
   const T = {};
   await Promise.all(textures.map(async n => { T[n] = pixels(await loadImg(`assets/tex/${n}.jpg`), 512, 512); }));
-  const [TW, TH] = size, col = new Uint8Array(TW * TH * 4), cls = new Uint8Array(TW * TH * 4);
-  for (let j = 0; j < TH; j++) for (let i = 0; i < TW; i++) {
-    const x = X0 + (X1 - X0) * i / (TW - 1), z = Z0 + (Z1 - Z0) * j / (TH - 1);
-    const [r, g, b, k] = paint(x, z, land.H(x, z), land.pathD(x, z), T, pick);
-    const o = (j * TW + i) * 4;
-    col[o] = Math.min(255, r); col[o + 1] = Math.min(255, g); col[o + 2] = Math.min(255, b); col[o + 3] = 255; cls[o] = k * 16;
+  const TW = Math.round(size[0] * Q.paint), TH = Math.round(size[1] * Q.paint);
+  const col = new Uint8Array(TW * TH * 4), cls = new Uint8Array(TW * TH * 4);
+  let slice = performance.now();
+  for (let j = 0; j < TH; j++) {
+    if (performance.now() - slice > 40) { await nextTask(); slice = performance.now(); }
+    for (let i = 0; i < TW; i++) {
+      const x = X0 + (X1 - X0) * i / (TW - 1), z = Z0 + (Z1 - Z0) * j / (TH - 1);
+      const [r, g, b, k] = paint(x, z, land.H(x, z), land.pathD(x, z), T, pick);
+      const o = (j * TW + i) * 4;
+      col[o] = Math.min(255, r); col[o + 1] = Math.min(255, g); col[o + 2] = Math.min(255, b); col[o + 3] = 255; cls[o] = k * 16;
+    }
   }
   const colTex = new THREE.DataTexture(col, TW, TH, THREE.RGBAFormat);
   colTex.colorSpace = THREE.SRGBColorSpace; colTex.magFilter = THREE.LinearFilter; colTex.minFilter = THREE.LinearMipmapLinearFilter; colTex.generateMipmaps = true; colTex.anisotropy = 8; colTex.needsUpdate = true;
   const clsTex = new THREE.DataTexture(cls, TW, TH, THREE.RGBAFormat); clsTex.magFilter = clsTex.minFilter = THREE.NearestFilter; clsTex.needsUpdate = true;
-  const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0, 480, 500); g.rotateX(-Math.PI / 2); g.translate((X0 + X1) / 2, 0, (Z0 + Z1) / 2);
+  const g = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0, Math.round(segments[0] * Q.mesh), Math.round(segments[1] * Q.mesh)); g.rotateX(-Math.PI / 2); g.translate((X0 + X1) / 2, 0, (Z0 + Z1) / 2);
   const p = g.attributes.position, uv = g.attributes.uv;
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, land.H(x, z)); uv.setXY(i, (x - X0) / (X1 - X0), (z - Z0) / (Z1 - Z0)); }
   g.computeVertexNormals();

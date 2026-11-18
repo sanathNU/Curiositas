@@ -3,13 +3,16 @@
 Miniature 3D worlds rendered as coloured monospace glyphs with a tilt-shift blur,
 seen from high above through a long lens. Every scene is a short `main.js` on a
 shared engine: it shapes the land, places instanced grass, flowers, trees and
-props, and hands the rest to the engine, which renders the scene into a
-half-float target and runs two post passes:
+props, and hands the rest to the engine, which renders the scene into a small
+half-float target (a few texels per glyph cell, since each glyph only shows its
+cell's average) and runs two post passes:
 
 1. **Glyph pass**: each grid cell becomes one character, chosen by the surface
    it shows (its *class*), its brightness and the direction of any edge, and
-   coloured from the render. The cell background is a dim copy of the render, so
-   gaps between glyphs still carry colour.
+   coloured from the render. That choice is made once per cell, into a
+   cols×rows target; the screen pass then only stamps glyphs from the atlas.
+   The cell background is a dim copy of the render, so gaps between glyphs
+   still carry colour.
 2. **Tilt-shift pass**: blur grows above and below a focus band, like a
    photograph of a model.
 
@@ -38,6 +41,7 @@ that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
 | `?res=phone` | render at a fixed resolution and letterbox it (see below) |
 | `?ui=off` | hide the menu button (keys and camera gestures still work) |
 | `?sound=on` / `?sound=off` | start the music on the first click or key, or leave it out entirely |
+| `?q=high` / `mid` / `low` | fix the quality tier instead of picking it from the device (see below) |
 
 Combine them: `/summit/?fox=still&tilt=off&t=8`.
 
@@ -61,15 +65,15 @@ By default a scene fills the window at its real pixel density, on any shape:
 phone, tablet, laptop, ultrawide, or an odd window size. It re-lays out live on
 resize, rotation, or a move to a monitor with a different pixel ratio.
 
-- **Device profile** (picked from the window size): sets the pixel budget,
-  glyph size and shadow quality.
+- **Device profile** (picked from the window size): sets the screen pixel
+  budget and glyph size.
 
-  | Profile | When | Max render pixels | Glyph cell | Shadow map |
-  |---|---|---|---|---|
-  | phone | shorter side < 600 CSS px | 2.2 M | ×1 | 2048 |
-  | tablet | shorter side < 1000, longer < 1400 | 3.2 M | ×1.05 | 4096 |
-  | desktop | anything else | 4.2 M | ×1.15 | 4096 |
-  | large | over 7 M device pixels | 6.5 M | ×1.3 | 4096 |
+  | Profile | When | Max screen pixels | Glyph cell |
+  |---|---|---|---|
+  | phone | shorter side < 600 CSS px | 2.2 M | ×1 |
+  | tablet | shorter side < 1000, longer < 1400 | 3.2 M | ×1.05 |
+  | desktop | anything else | 4.2 M | ×1.15 |
+  | large | over 7 M device pixels | 6.5 M | ×1.3 |
 
 - **Glyph grid**: keeps each scene's cell size (5.4 × 10.8 px for the portrait
   scenes) times the profile's factor, so a phone gets fewer columns and a big
@@ -78,6 +82,23 @@ resize, rotation, or a move to a monitor with a different pixel ratio.
   screen the lens widens (up to 34°), then the camera pulls back, so nothing is
   cropped from the sides. On a wider screen it shows at most 1.8× the composed
   width and crops height, which zooms toward the focal band.
+- **Quality tier** (`engine/quality.js`): how much work each frame and the
+  startup bake do. It starts from what the browser reports: software rendering
+  or ≤ 2 GB memory gives `low`; a phone, ≤ 4 cores, ≤ 4 GB or a mobile or
+  integrated GPU gives `mid`; anything else gives `high`. If frames keep
+  running more than 30% over budget (measured over 3 s), it steps down one
+  tier, live. `?q=` fixes the tier and turns that off.
+
+  | Tier | 3D texels per cell | Screen scale | Shadow map | Shadow redraw | Blur taps | FPS cap | Grass / flowers | Terrain texture |
+  |---|---|---|---|---|---|---|---|---|
+  | high | 4 × 8 | 1 | 4096 | every 2nd frame | 36 | 60 | all | 2048 × 2140 |
+  | mid | 3 × 6 | 1 | 2048 | every 3rd | 24 | 30 | 70% | 70% |
+  | low | 2 × 4 | 0.75 | 1024 | every 6th | 12 | 30 | 45% | 50% |
+
+  Grass and flowers are always placed in full, so every tier has the same
+  layout; lower tiers draw an even subset. Mangroves keeps every 2nd (mid) or
+  3rd (low) lantern as a real light, brighter and reaching further. While
+  paused, a frame is drawn only when the view changes.
 - **Fixed resolutions**: `?res=` takes `phone` (1170×2532), `phone-land`,
   `tablet` (1640×2360), `tablet-land`, `laptop` (2560×1600), `desktop`
   (1920×1080), `4k`, `ultrawide` (3440×1440), `square`, `frame` (the scene's
@@ -92,6 +113,85 @@ resize, rotation, or a move to a monitor with a different pixel ratio.
 | `summit` | Himalayan summit: prayer flags in the wind above a sea of cloud | 9:16 | 5.4 × 10.8 px |
 | `temple-south` | South Indian temple: gopuram towers, ghats, Nandi, pushkarini | 9:16 | 5.4 × 10.8 px |
 | `torii` | Senbon torii: vermilion gates and stone lanterns down a cliff to the sea | 9:16 | 5.4 × 10.8 px |
+| `picture` | Any picture drawn as glyphs (default: Venice waterfront at sunset) | the image's own | 6 × 12 image px |
+
+### Pictures
+
+`/picture/` runs a photo through the same glyph and tilt-shift passes. The
+photo takes the place of the 3D render, and each pixel's surface class is
+guessed from its colour, its local texture and its height in the frame:
+
+- smooth areas above the horizon line are **sky**, whatever their hue
+- unsaturated pixels are **stone**, or **bright** when near white
+- other hues become **water** (blue), **foliage** (green, dim olive),
+  **sand** (straw, ochre) or **warm** (reds, browns)
+
+Each class has a default glyph family. **Choose image** (bottom left) or
+dropping an image file on the page swaps the picture; it is read on the device,
+nothing is uploaded. `?img=<url>` loads another image (same origin, or a server
+that allows cross-origin loads). `?view=classes` shows the guess. `runPicture()` in
+`engine/picture.js` takes the horizon, thresholds, rules and tilt settings.
+
+Colour alone has limits. In the Venice photo, dusk-grey water and blue-tinted
+paving share a colour, so the water reads as stone, and its orange sunset
+glints read as warm.
+
+**Depth.** A picture can carry a depth map (`<name>.depth.png`, white near,
+black far), baked offline with Depth Anything V2 Small:
+
+```bash
+source ~/.venvs/dl/bin/activate
+python tools/depth.py assets/pictures/venice.jpg
+```
+
+With it, three things change:
+
+- **2.5D**: the picture becomes a relief, a grid pushed along each pixel's view
+  ray, and the camera sways slowly around the focus distance. Dragging and
+  zooming nudge it further. The mesh reaches past the image edges with repeated
+  edge pixels, so no gap shows.
+- **Classes from geometry**: the sky is the far plane, and unsaturated
+  surfaces split into **ground** (lying flat: inverse depth grows toward the
+  bottom of the frame) and **wall** (standing up), with flat and upright glyph
+  families.
+- **Tilt-shift by distance**: the blur follows depth away from a focus depth
+  instead of screen height, so the mid-ground stays sharp while near paving
+  and the far sky soften, like a real shallow-focus lens.
+
+- **Clean edges**: a single sheet would stretch across every jump in depth
+  (a tower against the sky) and smear as the camera moves. So the relief tears
+  wherever depth changes fast, measured across the image rather than the screen
+  so the camera angle can't hide a jump. Behind it, a back layer takes the
+  depth and colour of the farthest point nearby, so a tear shows what is
+  plausibly behind the edge; a blurred copy of the picture on the far plane
+  catches anything left. The model draws edges as soft ramps a few pixels
+  wide, so each depth map is first sharpened: ramps snap into steps, while
+  gentle slopes such as floors are left alone.
+
+Depth doesn't fix water versus paving: both are flat ground. `?depth=off` shows
+the flat version, `?parallax=off` keeps depth classes and blur but stops the
+sway, and `?depth=<url>` pairs a depth map with `?img=`. For comparing,
+`?tear=off` brings back the single stretched sheet, `?tear=<n>` sets where it
+tears, and `?sway=<degrees>` widens the automatic sway (default 2).
+
+**Depth in the browser.** A picture without a depth map (a dropped file, or
+`?img=` alone) shows flat, with an **Add depth** button in the corner. Clicking
+it runs the same model in the page through
+[Transformers.js](https://github.com/huggingface/transformers.js)
+(`engine/depth-browser.js`):
+
+- The picture never leaves the device. The library, ONNX Runtime and the
+  weights come from jsDelivr and Hugging Face once (about 50 MB), then the
+  browser caches them. Nothing loads until the button is clicked, or
+  `?depth=auto` asks for it.
+- On WebGPU with half floats it runs the 19 MB `q4f16` weights. On this
+  laptop that took about 3 s the first time, including the download, and
+  about 0.15 s for each later picture. Everywhere else it runs the 27 MB `int8`
+  weights in WebAssembly, about 5 s per picture, and the page pauses meanwhile.
+  ONNX Runtime's worker mode avoided the pause but measured about 6× slower.
+- After the first success, later pictures get depth automatically, except on
+  the `low` quality tier, where each estimate stays the viewer's choice. The
+  relief's grid is 360, 240 or 160 segments wide on the high, mid and low tiers.
 
 ## Project structure
 
@@ -102,19 +202,24 @@ ascii-dioramas/
     materials.js  tag() (class in alpha), wind shaders, textures, vertex colours
     terrain.js    buildLand (height + trail grids), terrainMesh, waterPlane, sea / cloud shaders
     fill.js       grass, flowers, trees, rocks, drifting particles
-    glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
+    glyphs.js     glyph atlas, glyph pass (cell step + screen step), tilt-shift pass
     display.js    resolutions, device profiles, render size and grid, camera framing
+    quality.js    quality tiers, device detection, frame-time governor, grass thinning
     title.js      scene title overlay
     music.js      generative polyrhythm music: Web Audio instruments, reverb, beat scheduler
     controls.js   orbit and zoom gestures, hidden menu, keys, video recording
     run.js        runDiorama: renderer, lights, camera sweep, creature, URL flags, loop
+    picture.js    runPicture: a photo as the source, colour-based surface classes, default glyph rules
+    depth-browser.js  depth estimation in the page (Transformers.js, Depth Anything V2 Small)
   scenes/<name>/main.js   one scene: land, paint, props, glyph rules, config
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
   serve.mjs       dev server
   build.mjs       static build into dist/ (used by the Pages workflow)
+  tools/depth.py  bakes a depth map for a picture (Depth Anything V2 Small)
   assets/
     models/Fox.glb   animated fox
     tex/*.jpg        ground textures (Poly Haven)
+    pictures/*.jpg   test pictures for /picture/ (and *.depth.png depth maps)
     thumbs/*.jpg     homepage thumbnails
 ```
 
@@ -154,7 +259,8 @@ runDiorama({
   Nothing may use transparency, because blending would mix the class values.
 
 New scenes are picked up from `scenes/<name>/main.js`; add a line to
-`SCENE_META` in `site.mjs` and a thumbnail in `assets/thumbs/` for the homepage.
+`SCENE_META` in `site.mjs` and a thumbnail in `assets/thumbs/` for the homepage
+(`node tools/thumbs.mjs` captures every scene's 3:4 cover from the running dev server).
 
 ## Motion
 
@@ -233,4 +339,6 @@ Everything else (terrain, props, water, clouds, the glyph atlas) is generated in
 | Asset | Source | Licence |
 |---|---|---|
 | Ground textures (`tex/*.jpg`) | [Poly Haven](https://polyhaven.com) | CC0 |
+| Venice photo (`pictures/venice.jpg`), cropped from the tonemapped `venice_sunset` HDRI | [Poly Haven](https://polyhaven.com/a/venice_sunset) | CC0 |
+| Depth map (`pictures/venice.depth.png`), made with Depth Anything V2 Small | [depth-anything/Depth-Anything-V2-Small-hf](https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf) | model Apache-2.0 |
 | Fox model (`Fox.glb`) | [Khronos glTF samples](https://github.com/KhronosGroup/glTF-Sample-Models) | CC-BY 4.0 |

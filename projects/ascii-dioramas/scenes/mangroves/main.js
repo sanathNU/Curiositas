@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   runDiorama, buildLand, terrainMesh, waterPlane, grass, makeTrees, drifters,
-  tag, tex, bladeWind, leafWind, g, glf, fbm, seeded,
+  tag, tex, bladeWind, leafWind, g, glf, fbm, seeded, onTier,
 } from '../../engine/index.js';
 
 const CLS = { grass: 1, leaf: 2, lily: 3, hut: 4, plank: 5, thatch: 6, wood: 7, mud: 8, water: 9, glint: 10, fox: 11, glow: 12, root: 13 };
@@ -160,13 +160,19 @@ function buildBoardwalk(scene) {
   const rp = new THREE.Mesh(mergeGeometries(ropes), tag(new THREE.MeshLambertMaterial({ color: '#c9a36a' }), CLS.wood)); scene.add(rp);
 }
 function buildLanterns(scene) {
-  const poles = [], caps = [], lamps = [];
+  const poles = [], caps = [], lamps = [], lights = [];
   for (const [x, z] of LANTERNS) {
     const pg = new THREE.CylinderGeometry(.06, .08, DECK_Y + 2.9, 6); pg.translate(x, (DECK_Y + 1.5) - (DECK_Y + 2.9) / 2, z); poles.push(pg);
     const lg = new THREE.BoxGeometry(.24, .3, .24); lg.translate(x, DECK_Y + 1.68, z); lamps.push(lg);
     const cg = new THREE.ConeGeometry(.22, .16, 4); cg.rotateY(Math.PI / 4); cg.translate(x, DECK_Y + 1.91, z); caps.push(cg);
-    const light = new THREE.PointLight('#ffae4a', 9, 7.5, 2); light.position.set(x, DECK_Y + 1.7, z); scene.add(light);
+    const light = new THREE.PointLight('#ffae4a', 9, 7.5, 2); light.position.set(x, DECK_Y + 1.7, z); scene.add(light); lights.push(light);
   }
+  // Every point light costs every lit pixel a little; lower tiers keep every 2nd or 3rd lantern
+  // lit, brighter and wider-reaching, and the rest glow only (lamp box, water reflection).
+  onTier(({ lights: share }) => {
+    const step = Math.max(1, Math.round(1 / share));
+    lights.forEach((l, i) => { l.visible = i % step === 0; l.intensity = 9 * Math.sqrt(step); l.distance = 7.5 * (1 + .3 * (step - 1)); });
+  });
   const wood = tag(new THREE.MeshLambertMaterial({ color: '#4a2e1a' }), CLS.wood);
   const pm = new THREE.Mesh(mergeGeometries([...poles, ...caps.map(c => c.toNonIndexed())].map(g => (g.index ? g.toNonIndexed() : g))), wood); pm.castShadow = true; scene.add(pm);
   scene.add(new THREE.Mesh(mergeGeometries(lamps), tag(new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.35, .45) }), CLS.glow)));
