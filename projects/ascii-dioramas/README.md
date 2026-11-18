@@ -158,9 +158,21 @@ With it, three things change:
   instead of screen height, so the mid-ground stays sharp while near paving
   and the far sky soften, like a real shallow-focus lens.
 
+- **Clean edges**: a single sheet would stretch across every jump in depth
+  (a tower against the sky) and smear as the camera moves. So the relief tears
+  wherever depth changes fast, measured across the image rather than the screen
+  so the camera angle can't hide a jump. Behind it, a back layer takes the
+  depth and colour of the farthest point nearby, so a tear shows what is
+  plausibly behind the edge; a blurred copy of the picture on the far plane
+  catches anything left. The model draws edges as soft ramps a few pixels
+  wide, so each depth map is first sharpened: ramps snap into steps, while
+  gentle slopes such as floors are left alone.
+
 Depth doesn't fix water versus paving: both are flat ground. `?depth=off` shows
 the flat version, `?parallax=off` keeps depth classes and blur but stops the
-sway, and `?depth=<url>` pairs a depth map with `?img=`.
+sway, and `?depth=<url>` pairs a depth map with `?img=`. For comparing,
+`?tear=off` brings back the single stretched sheet, `?tear=<n>` sets where it
+tears, and `?sway=<degrees>` widens the automatic sway (default 2).
 
 **Depth in the browser.** A picture without a depth map (a dropped file, or
 `?img=` alone) shows flat, with an **Add depth** button in the corner. Clicking

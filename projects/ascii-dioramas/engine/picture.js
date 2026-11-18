@@ -87,62 +87,146 @@ export const pictureRules = /* glsl */`
 const black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); black.needsUpdate = true;
 
 /**
+ * Depth models draw object edges as soft ramps a few pixels wide, and a relief built on a ramp
+ * stretches across it as the camera moves. This snaps each ramp into a step: where depth varies by
+ * more than `range` within `radius` (a share of the width) of a pixel, the pixel takes the nearer of
+ * the local minimum and maximum. Gentle slopes such as floors vary less and are left alone. Runs
+ * once per depth map, on a copy at most 768 px wide (the relief grid is coarser than that anyway).
+ */
+function sharpenDepth(tex, { radius = .012, range = .1 } = {}) {
+  const img = tex.image, sw = img.width, sh = img.height;
+  const w = Math.min(768, sw), h = Math.max(1, Math.round(sh * w / sw)), r = Math.max(1, Math.round(radius * w));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, w, h);
+  const px = x.getImageData(0, 0, w, h).data, d = new Uint8Array(w * h);
+  for (let i = 0; i < d.length; i++) d[i] = px[i * 4];
+  // separable sliding min and max over a (2r+1)² box
+  const pass = (src, horizontal, pick) => {
+    const out = new Uint8Array(src.length), n = horizontal ? w : h, m = horizontal ? h : w;
+    for (let line = 0; line < m; line++) for (let i = 0; i < n; i++) {
+      let v = pick === 'min' ? 255 : 0;
+      for (let k = Math.max(0, i - r), e = Math.min(n - 1, i + r); k <= e; k++) {
+        const s = src[horizontal ? line * w + k : k * w + line];
+        v = pick === 'min' ? Math.min(v, s) : Math.max(v, s);
+      }
+      out[horizontal ? line * w + i : i * w + line] = v;
+    }
+    return out;
+  };
+  const lo = pass(pass(d, true, 'min'), false, 'min'), hi = pass(pass(d, true, 'max'), false, 'max');
+  const t = range * 255, out = new Uint8Array(w * h * 4);
+  for (let i = 0; i < d.length; i++) {
+    const v = hi[i] - lo[i] > t ? (d[i] - lo[i] < hi[i] - d[i] ? lo[i] : hi[i]) : d[i];
+    out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = v; out[i * 4 + 3] = 255;
+  }
+  // canvas rows run top-down; flip so the texture lines up with image textures (flipY)
+  const flipped = new Uint8Array(out.length), row = w * 4;
+  for (let y = 0; y < h; y++) flipped.set(out.subarray(y * row, (y + 1) * row), (h - 1 - y) * row);
+  const res = new THREE.DataTexture(flipped, w, h, THREE.RGBAFormat);
+  res.colorSpace = THREE.NoColorSpace; res.magFilter = THREE.LinearFilter; res.minFilter = THREE.LinearMipmapLinearFilter;
+  res.generateMipmaps = true; res.needsUpdate = true;
+  return res;
+}
+
+/**
  * The picture as a mesh: with depth, a grid displaced along each pixel's view ray (inverse depth
  * mapped between `near` and `far`), seen through a camera that sways around the focus distance;
  * without depth, a flat card at the focus distance (the same camera then shows it unchanged).
  * Writes linear colour and class into the engine's render target, plus a blur map for tilt-shift.
  */
 function pictureSource(texture, depthTex, opts) {
-  const { near = 2.6, far = 40, focus = .24, blur = [.1, .6], sway = [2, 1], parallax = true, exposure = 1 } = opts;
+  const { near = 2.6, far = 40, focus = .24, blur = [.1, .6], sway = [2, 1], parallax = true, exposure = 1, tear = 6, fill = .06 } = opts;
   const imgAspect = () => texture.image.width / texture.image.height;
   const tan0 = Math.tan(THREE.MathUtils.degToRad(20)); // image frustum: 40° vertical
   const uniforms = {
-    uImg: { value: texture }, uDepth: { value: depthTex ?? black }, uHasDepth: { value: depthTex ? 1 : 0 },
+    uImg: { value: texture }, uDepth: { value: depthTex ? sharpenDepth(depthTex) : black }, uHasDepth: { value: depthTex ? 1 : 0 },
     uTan: { value: new THREE.Vector2(tan0 * imgAspect(), tan0) }, uNear: { value: near }, uFar: { value: far },
     uFocus: { value: focus }, uBlur: { value: new THREE.Vector2(...blur) },
   };
   // inverse depth d (1 near, 0 far) -> distance along the view ray; without depth everything sits at the focus.
   // The mesh reaches 12% past each image edge, repeating the edge pixels, so swaying never shows a gap.
-  const vertexShader = /* glsl */`
-uniform sampler2D uDepth; uniform float uHasDepth, uNear, uFar, uFocus; uniform vec2 uTan;
-varying vec2 vUv;
+  //
+  // Depth edges: one continuous sheet would stretch triangles across every jump in depth (a tower
+  // against the sky) and smear as the camera moves. So the relief is three layers:
+  //   front     the picture itself, torn wherever depth changes faster than `tear` (inverse depth
+  //             per image width) inside one triangle
+  //   back      depth and colour of the farthest point within `fill` of each point: what is
+  //             plausibly behind an edge, shown through the front layer's tears; torn the same
+  //             way, because its own jump (where the search stops reaching the background) would
+  //             otherwise stretch across the hole too
+  //   backdrop  the picture blurred on the far plane, for any gap the other two leave
+  // sharpenDepth() first turns the model's soft edge ramps into steps that the tear test can see.
+  const LAYERS = { front: 0, back: 1, far: 2 };
+  const vertexShader = (kind) => /* glsl */`
+uniform sampler2D uDepth; uniform float uHasDepth, uNear, uFar, uFocus, uFill; uniform vec2 uTan;
+varying vec2 vUv, vGrid; varying float vD;
+float depthAt(vec2 p){ return textureLod(uDepth,p,1.).r; }
 void main(){
-  vec2 u = uv*1.24-.12;
-  vUv = clamp(u,0.,1.);
-  float d = uHasDepth>.5 ? textureLod(uDepth,vUv,2.).r : uFocus;
-  float z = 1./mix(1./uFar,1./uNear,d);
+  vec2 u = uv*1.24-.12, c = clamp(u,0.,1.);
+  float d = uHasDepth>.5 ? depthAt(c) : uFocus;
+  vec2 src = c;${kind === 'back' ? `
+  if(uHasDepth>.5){
+    vec2 r = vec2(uFill, uFill*uTan.x/uTan.y); // a circle in image pixels
+    for(int i=0;i<12;i++){
+      vec2 dir = vec2(cos(float(i)*.5236), sin(float(i)*.5236));
+      for(int k=1;k<=4;k++){
+        vec2 q = clamp(c+dir*r*float(k)/4.,0.,1.); float dq = depthAt(q);
+        if(dq<d){ d = dq; src = q; }
+      }
+    }
+  }` : ''}${kind === 'far' ? `
+  d = 0.;` : ''}
+  vUv = src; vGrid = u; vD = d;
+  float z = 1./mix(1./uFar,1./uNear,d)${{ front: '', back: '*1.02', far: '*1.06' }[kind]};
   vec3 p = vec3((u.x-.5)*2.*uTan.x,(u.y-.5)*2.*uTan.y,-1.)*z;
   gl_Position = projectionMatrix*viewMatrix*vec4(p,1.);
 }`;
-  const colorMat = new THREE.ShaderMaterial({
-    uniforms, vertexShader, depthWrite: true,
-    fragmentShader: /* glsl */`
-uniform sampler2D uImg, uDepth; uniform float uHasDepth;
-varying vec2 vUv;
+  // Drop triangles that span a depth jump (not the backdrop, which is flat). The test needs depth's
+  // gradient across the image, not across the screen: a triangle stretched by the camera changes
+  // screen-space derivatives, so solve them back through the image-to-screen Jacobian.
+  const tearGLSL = (kind) => kind === 'far' ? '' : /* glsl */`
+  if(uHasDepth>.5){
+    vec2 a = dFdx(vGrid), b = dFdy(vGrid), D = vec2(dFdx(vD), dFdy(vD));
+    float det = a.x*b.y-a.y*b.x;
+    vec2 grad = vec2(b.y*D.x-a.y*D.y, a.x*D.y-b.x*D.x)/(abs(det)>1e-12 ? det : 1e-12);
+    if(length(grad)>uTear) discard;
+  }`;
+  Object.assign(uniforms, { uTear: { value: tear }, uFill: { value: fill } });
+  const colorFrag = (kind) => /* glsl */`
+uniform sampler2D uImg, uDepth; uniform float uHasDepth, uTear;
+varying vec2 vUv, vGrid; varying float vD;
 ${classifyGLSL(opts)}
-void main(){ gl_FragColor = vec4(textureLod(uImg,vUv,0.).rgb*${glf(exposure)}, classify(vUv)/16.); }`,
-  });
+void main(){${tearGLSL(kind)}
+  gl_FragColor = vec4(textureLod(uImg,vUv,${{ front: '0.', back: '1.', far: '3.5' }[kind]}).rgb*${glf(exposure)}, classify(vUv)/16.);
+}`;
   // tilt-shift strength from distance to the focus depth (0 sharp .. 1 full blur)
-  const blurMat = new THREE.ShaderMaterial({
-    uniforms, vertexShader,
-    fragmentShader: /* glsl */`
-uniform sampler2D uDepth; uniform float uFocus; uniform vec2 uBlur;
-varying vec2 vUv;
-void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,1.).r-uFocus)),1.6); gl_FragColor = vec4(k,k,k,1.); }`,
-  });
+  const blurFrag = (kind) => /* glsl */`
+uniform float uFocus, uHasDepth, uTear; uniform vec2 uBlur;
+varying vec2 vUv, vGrid; varying float vD;
+void main(){${tearGLSL(kind)}
+  float k = pow(smoothstep(uBlur.x,uBlur.y,abs(vD-uFocus)),1.6); gl_FragColor = vec4(k,k,k,1.);
+}`;
+  const mat = (frag, kind) => new THREE.ShaderMaterial({ uniforms, vertexShader: vertexShader(kind), fragmentShader: frag(kind) });
   const hasDepth = () => uniforms.uHasDepth.value > .5;
   // relief detail follows the quality tier (depth may arrive later, so the grid is always there)
   const SEGS = { high: 360, mid: 240, low: 160 };
   const grid = (segs) => new THREE.PlaneGeometry(1, 1, segs, Math.max(1, Math.round(segs / imgAspect())));
-  const mesh = new THREE.Mesh(grid(parallax ? SEGS[Q.name] : 1), colorMat); mesh.frustumCulled = false;
-  const scene = new THREE.Scene(); scene.add(mesh);
-  const blurMesh = new THREE.Mesh(mesh.geometry, blurMat); blurMesh.frustumCulled = false;
+  let geo = grid(parallax ? SEGS[Q.name] : 1);
+  const layer = (m, kind) => { const x = new THREE.Mesh(geo, m); x.frustumCulled = false; x.userData.kind = kind; return x; };
+  const kinds = Object.keys(LAYERS);
+  const meshes = kinds.map(k => layer(mat(colorFrag, k), k));
+  const blurMeshes = kinds.map(k => layer(mat(blurFrag, k), k));
+  const scene = new THREE.Scene(); scene.add(...meshes);
+  const blurScene = new THREE.Scene(); blurScene.add(...blurMeshes);
+  /** The back layer and backdrop only matter once the relief has depth to tear. */
+  const syncLayers = () => [...meshes, ...blurMeshes].forEach(m => { if (m.userData.kind !== 'front') m.visible = parallax && hasDepth(); });
+  syncLayers();
   if (parallax) onTier((q) => {
-    const want = SEGS[q.name], has = mesh.geometry.parameters.widthSegments;
-    if (want === has) return;
-    const old = mesh.geometry; mesh.geometry = blurMesh.geometry = grid(want); old.dispose();
+    if (SEGS[q.name] === geo.parameters.widthSegments) return;
+    const old = geo; geo = grid(SEGS[q.name]);
+    [...meshes, ...blurMeshes].forEach(m => { m.geometry = geo; });
+    old.dispose();
   });
-  const blurScene = new THREE.Scene(); blurScene.add(blurMesh);
   const blurRT = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true });
 
   const camera = new THREE.PerspectiveCamera(40, 1, .5, far * 4);
@@ -159,8 +243,8 @@ void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,
   /** Slow automatic sway plus a damped share of the viewer's own orbit and zoom. */
   function update(t, dt, state) {
     const on = parallax && hasDepth(), o = state?.orbit ?? { yaw: 0, el: 0, zoom: 1 };
-    const yaw = on ? D(sway[0] * Math.sin(t * .3) + THREE.MathUtils.clamp(o.yaw * .1, -6, 6)) : 0;
-    const el = on ? D(sway[1] * Math.sin(t * .23 + 1) + THREE.MathUtils.clamp(o.el * .1, -4, 4)) : 0;
+    const yaw = on ? D(sway[0] * Math.sin(t * .3) + THREE.MathUtils.clamp(o.yaw * .1, -3, 3)) : 0;
+    const el = on ? D(sway[1] * Math.sin(t * .23 + 1) + THREE.MathUtils.clamp(o.el * .1, -2, 2)) : 0;
     const R = focusZ() * (on ? THREE.MathUtils.clamp(o.zoom, .75, 1.1) : 1);
     pivot.set(0, 0, -focusZ());
     camera.position.set(Math.sin(yaw) * Math.cos(el) * R, Math.sin(el) * R, -focusZ() + Math.cos(yaw) * Math.cos(el) * R);
@@ -184,10 +268,11 @@ void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,
       src.setDepth(depth); if (old !== t) old.dispose();
     },
     setDepth(depth) {
-      const old = uniforms.uDepth.value;
-      uniforms.uDepth.value = depth ?? black; uniforms.uHasDepth.value = depth ? 1 : 0;
-      if (old !== black && old !== depth) old.dispose();
-      resize(); src.version++;
+      const old = uniforms.uDepth.value, sharp = depth ? sharpenDepth(depth) : black;
+      if (depth) depth.dispose();
+      uniforms.uDepth.value = sharp; uniforms.uHasDepth.value = depth ? 1 : 0;
+      if (old !== black) old.dispose();
+      resize(); syncLayers(); src.version++;
     },
   };
   return src;
@@ -208,7 +293,9 @@ const loadTexture = (url, srgb = true) => new THREE.TextureLoader().loadAsync(ur
  * low tier). The relief's grid detail follows the quality tier.
  * Classifier: `horizon` (0 bottom .. 1 top, used without depth), `smooth`, `gray`, `skyDepth`,
  * `groundSlope`. Depth: `near`, `far`, `focus` (inverse depth in focus), `blur` ([sharp, full]
- * distance from focus), `sway` (auto camera sway in degrees), `parallax`. `rules`, `glyphs` and
+ * distance from focus), `sway` (auto camera sway in degrees), `parallax`, `tear` (depth change per
+ * image width where the relief tears) and `fill` (how far, as a share of the width, the back layer
+ * looks for what is behind an edge). `rules`, `glyphs` and
  * `tilt` override the glyph rules, grading and the screen-space tilt used without depth.
  */
 export async function runPicture({ src, depth = null, title, cell = [6, 12], horizon = .4, smooth = .035, gray = .16, skyDepth = .03, groundSlope = .3,
