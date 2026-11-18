@@ -133,7 +133,34 @@ on the page swaps it. `?view=classes` shows the guess. `runPicture()` in
 
 Colour alone has limits. In the Venice photo, dusk-grey water and blue-tinted
 paving share a colour, so the water reads as stone, and its orange sunset
-glints read as warm. Telling those apart needs a segmentation or depth model.
+glints read as warm.
+
+**Depth.** A picture can carry a depth map (`<name>.depth.png`, white near,
+black far), baked offline with Depth Anything V2 Small:
+
+```bash
+source ~/.venvs/dl/bin/activate
+python tools/depth.py assets/pictures/venice.jpg
+```
+
+With it, three things change:
+
+- **2.5D**: the picture becomes a relief, a grid pushed along each pixel's view
+  ray, and the camera sways slowly around the focus distance. Dragging and
+  zooming nudge it further. The mesh reaches past the image edges with repeated
+  edge pixels, so no gap shows.
+- **Classes from geometry**: the sky is the far plane, and unsaturated
+  surfaces split into **ground** (lying flat: inverse depth grows toward the
+  bottom of the frame) and **wall** (standing up), with flat and upright glyph
+  families.
+- **Tilt-shift by distance**: the blur follows depth away from a focus depth
+  instead of screen height, so the mid-ground stays sharp while near paving
+  and the far sky soften, like a real shallow-focus lens.
+
+Depth doesn't fix water versus paving: both are flat ground. `?depth=off` shows
+the flat version, `?parallax=off` keeps depth classes and blur but stops the
+sway, and `?depth=<url>` pairs a depth map with `?img=`. A dropped image has no
+depth map, so it shows flat.
 
 ## Project structure
 
@@ -156,10 +183,11 @@ ascii-dioramas/
   site.mjs        scene list, homepage and scene page HTML, bundling (shared by the two below)
   serve.mjs       dev server
   build.mjs       static build into dist/ (used by the Pages workflow)
+  tools/depth.py  bakes a depth map for a picture (Depth Anything V2 Small)
   assets/
     models/Fox.glb   animated fox
     tex/*.jpg        ground textures (Poly Haven)
-    pictures/*.jpg   test pictures for /picture/
+    pictures/*.jpg   test pictures for /picture/ (and *.depth.png depth maps)
     thumbs/*.jpg     homepage thumbnails
 ```
 
@@ -279,4 +307,5 @@ Everything else (terrain, props, water, clouds, the glyph atlas) is generated in
 |---|---|---|
 | Ground textures (`tex/*.jpg`) | [Poly Haven](https://polyhaven.com) | CC0 |
 | Venice photo (`pictures/venice.jpg`), cropped from the tonemapped `venice_sunset` HDRI | [Poly Haven](https://polyhaven.com/a/venice_sunset) | CC0 |
+| Depth map (`pictures/venice.depth.png`), made with Depth Anything V2 Small | [depth-anything/Depth-Anything-V2-Small-hf](https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf) | model Apache-2.0 |
 | Fox model (`Fox.glb`) | [Khronos glTF samples](https://github.com/KhronosGroup/glTF-Sample-Models) | CC-BY 4.0 |

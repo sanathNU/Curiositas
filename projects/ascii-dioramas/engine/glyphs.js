@@ -122,15 +122,16 @@ const CLASS_PALETTE = `const vec3 CLASS_COLORS[14] = vec3[14](${CLASS_COLORS.map
  * Tilt-shift: sharp within `start` of the focus line, blur radius rising to uMaxR px by `end`;
  * uTaps (up to 36, set by the quality tier) taps on a golden-angle disc, read from a mip level
  * matched to the radius. uMaxR is set per screen so the blur keeps its size relative to the frame height.
+ * With uBlurMap = 1 the strength comes from uBlur instead (0..1 per pixel, e.g. from a depth map).
  */
 export function tiltFrag({ focus = .44, start = .27, end = .6 } = {}) {
   return /* glsl */`
 precision highp float;
-uniform sampler2D uA; uniform vec2 uRes; uniform float uMaxR; uniform int uTaps;
+uniform sampler2D uA, uBlur; uniform vec2 uRes; uniform float uMaxR; uniform int uTaps, uBlurMap;
 in vec2 vUv; out vec4 outColor;
 void main(){
   float dy = abs(vUv.y-${glf(focus)});
-  float r = pow(smoothstep(${glf(start)},${glf(end)},dy),1.6)*uMaxR;
+  float r = (uBlurMap==1 ? texture(uBlur,vUv).r : pow(smoothstep(${glf(start)},${glf(end)},dy),1.6))*uMaxR;
   if(r<.2){ outColor = vec4(texture(uA,vUv).rgb,1.); return; }
   vec3 c = vec3(0.);
   float n = float(uTaps), lod = max(log2(r*6./sqrt(n)/4.),0.);

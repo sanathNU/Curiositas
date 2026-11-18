@@ -91,9 +91,10 @@ async function loadCreature(scene, c, mode) {
 /**
  * Run a diorama. `build(scene)` adds everything and may return update(t, dt) for per-frame work.
  * See README for each option; scenes/summit/main.js is the most complete example.
- * Instead of `build`, `source` ({ scene, camera, resize?(aspect), update?(t, dt) }) supplies a
- * ready-made scene that writes colour and class into the render target, e.g. a picture (picture.js);
- * then there are no lights, shadows, creature or camera sweep.
+ * Instead of `build`, `source` ({ scene, camera, resize?(aspect), update?(t, dt, state), blur? })
+ * supplies a ready-made scene that writes colour and class into the render target, e.g. a picture
+ * (picture.js); then there are no lights, shadows, creature or camera sweep. `blur`, when enabled,
+ * renders a per-pixel tilt-shift strength map that replaces the screen-height focus band.
  */
 export async function runDiorama(cfg) {
   // `size` is the frame the scene was composed for and `grid` its glyph density there;
@@ -135,7 +136,9 @@ export async function runDiorama(cfg) {
   const raw = (fragmentShader, uniforms) => new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vtx, fragmentShader, uniforms, depthTest: false, depthWrite: false });
   const cellMat = raw(cellFrag(cfg.glyphs), { uScene: { value: rt.texture }, uGrid: { value: grid2 }, uTime: time });
   const ascii = raw(glyphFrag(cfg.glyphs), { uScene: { value: rt.texture }, uCells: { value: cells.texture }, uAtlas: { value: buildAtlas() }, uGrid: { value: grid2 }, uN: { value: GLYPHS.length }, uView: { value: state.view } });
-  const tilt = raw(tiltFrag(cfg.tilt), { uA: { value: art.texture }, uRes: { value: new THREE.Vector2() }, uMaxR: { value: 26 }, uTaps: { value: Q.taps } });
+  const noBlur = new THREE.DataTexture(new Uint8Array(4), 1, 1); noBlur.needsUpdate = true;
+  const tilt = raw(tiltFrag(cfg.tilt), { uA: { value: art.texture }, uRes: { value: new THREE.Vector2() }, uMaxR: { value: 26 }, uTaps: { value: Q.taps },
+    uBlur: { value: src?.blur?.texture ?? noBlur }, uBlurMap: { value: 0 } });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), ascii); quad.frustumCulled = false;
   const post = new THREE.Scene(); post.add(quad); const postCam = new THREE.Camera();
 
@@ -167,7 +170,7 @@ export async function runDiorama(cfg) {
     tilt.uniforms.uTaps.value = Q.taps;
     if (sun && sun.shadow.mapSize.x !== Q.shadow) { sun.shadow.mapSize.set(Q.shadow, Q.shadow); sun.shadow.map?.dispose(); sun.shadow.map = null; }
     shadowDirty = true;
-    if (src) src.resize?.(L.w / L.h);
+    if (src) { src.resize?.(L.w / L.h); src.blur?.setSize(W, Hh); }
     else camDist = frameCamera(camera, frame[0] / frame[1], L.w / L.h, cfg.camera);
     const a = L.w / L.h;
     Object.assign(stage.style, L.fill
@@ -192,14 +195,18 @@ export async function runDiorama(cfg) {
   let shownView = state.view, frameNo = 0;
   function drawFrame(t, dt) {
     time.value = t; placeCamera(t);
-    creature?.(t, dt); update?.(t, dt);
+    creature?.(t, dt); update?.(t, dt, state);
     if (state.view !== shownView) { shownView = state.view; sizeTargets(); }
     renderer.shadowMap.needsUpdate = shadowDirty || frameNo++ % Q.shadowEvery === 0; shadowDirty = false;
     renderer.setRenderTarget(rt); renderer.setClearColor(sky, 0); renderer.clear(); renderer.render(scene, camera);
     ascii.uniforms.uView.value = state.view;
     if (VIEWS[state.view] === 'glyphs') { quad.material = cellMat; renderer.setRenderTarget(cells); renderer.render(post, postCam); }
     quad.material = ascii; renderer.setRenderTarget(state.tilt ? art : null); renderer.render(post, postCam);
-    if (state.tilt) { quad.material = tilt; renderer.setRenderTarget(null); renderer.render(post, postCam); }
+    if (state.tilt) {
+      const map = !!src?.blur?.enabled; tilt.uniforms.uBlurMap.value = map ? 1 : 0;
+      if (map) src.blur.render(renderer);
+      quad.material = tilt; renderer.setRenderTarget(null); renderer.render(post, postCam);
+    }
   }
 
   // Live tier changes: the build-time knobs (terrain detail) stay, everything else follows.
