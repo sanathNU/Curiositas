@@ -3,13 +3,16 @@
 Miniature 3D worlds rendered as coloured monospace glyphs with a tilt-shift blur,
 seen from high above through a long lens. Every scene is a short `main.js` on a
 shared engine: it shapes the land, places instanced grass, flowers, trees and
-props, and hands the rest to the engine, which renders the scene into a
-half-float target and runs two post passes:
+props, and hands the rest to the engine, which renders the scene into a small
+half-float target (a few texels per glyph cell, since each glyph only shows its
+cell's average) and runs two post passes:
 
 1. **Glyph pass**: each grid cell becomes one character, chosen by the surface
    it shows (its *class*), its brightness and the direction of any edge, and
-   coloured from the render. The cell background is a dim copy of the render, so
-   gaps between glyphs still carry colour.
+   coloured from the render. That choice is made once per cell, into a
+   cols×rows target; the screen pass then only stamps glyphs from the atlas.
+   The cell background is a dim copy of the render, so gaps between glyphs
+   still carry colour.
 2. **Tilt-shift pass**: blur grows above and below a focus band, like a
    photograph of a model.
 
@@ -38,6 +41,7 @@ that scene's bundle. Space pauses. `node serve.mjs 5175` picks another port;
 | `?res=phone` | render at a fixed resolution and letterbox it (see below) |
 | `?ui=off` | hide the menu button (keys and camera gestures still work) |
 | `?sound=on` / `?sound=off` | start the music on the first click or key, or leave it out entirely |
+| `?q=high` / `mid` / `low` | fix the quality tier instead of picking it from the device (see below) |
 
 Combine them: `/summit/?fox=still&tilt=off&t=8`.
 
@@ -61,15 +65,15 @@ By default a scene fills the window at its real pixel density, on any shape:
 phone, tablet, laptop, ultrawide, or an odd window size. It re-lays out live on
 resize, rotation, or a move to a monitor with a different pixel ratio.
 
-- **Device profile** (picked from the window size): sets the pixel budget,
-  glyph size and shadow quality.
+- **Device profile** (picked from the window size): sets the screen pixel
+  budget and glyph size.
 
-  | Profile | When | Max render pixels | Glyph cell | Shadow map |
-  |---|---|---|---|---|
-  | phone | shorter side < 600 CSS px | 2.2 M | ×1 | 2048 |
-  | tablet | shorter side < 1000, longer < 1400 | 3.2 M | ×1.05 | 4096 |
-  | desktop | anything else | 4.2 M | ×1.15 | 4096 |
-  | large | over 7 M device pixels | 6.5 M | ×1.3 | 4096 |
+  | Profile | When | Max screen pixels | Glyph cell |
+  |---|---|---|---|
+  | phone | shorter side < 600 CSS px | 2.2 M | ×1 |
+  | tablet | shorter side < 1000, longer < 1400 | 3.2 M | ×1.05 |
+  | desktop | anything else | 4.2 M | ×1.15 |
+  | large | over 7 M device pixels | 6.5 M | ×1.3 |
 
 - **Glyph grid**: keeps each scene's cell size (5.4 × 10.8 px for the portrait
   scenes) times the profile's factor, so a phone gets fewer columns and a big
@@ -78,6 +82,23 @@ resize, rotation, or a move to a monitor with a different pixel ratio.
   screen the lens widens (up to 34°), then the camera pulls back, so nothing is
   cropped from the sides. On a wider screen it shows at most 1.8× the composed
   width and crops height, which zooms toward the focal band.
+- **Quality tier** (`engine/quality.js`): how much work each frame and the
+  startup bake do. It starts from what the browser reports: software rendering
+  or ≤ 2 GB memory gives `low`; a phone, ≤ 4 cores, ≤ 4 GB or a mobile or
+  integrated GPU gives `mid`; anything else gives `high`. If frames keep
+  running more than 30% over budget (measured over 3 s), it steps down one
+  tier, live. `?q=` fixes the tier and turns that off.
+
+  | Tier | 3D texels per cell | Screen scale | Shadow map | Shadow redraw | Blur taps | FPS cap | Grass / flowers | Terrain texture |
+  |---|---|---|---|---|---|---|---|---|
+  | high | 4 × 8 | 1 | 4096 | every 2nd frame | 36 | 60 | all | 2048 × 2140 |
+  | mid | 3 × 6 | 1 | 2048 | every 3rd | 24 | 30 | 70% | 70% |
+  | low | 2 × 4 | 0.75 | 1024 | every 6th | 12 | 30 | 45% | 50% |
+
+  Grass and flowers are always placed in full, so every tier has the same
+  layout; lower tiers draw an even subset. Mangroves keeps every 2nd (mid) or
+  3rd (low) lantern as a real light, brighter and reaching further. While
+  paused, a frame is drawn only when the view changes.
 - **Fixed resolutions**: `?res=` takes `phone` (1170×2532), `phone-land`,
   `tablet` (1640×2360), `tablet-land`, `laptop` (2560×1600), `desktop`
   (1920×1080), `4k`, `ultrawide` (3440×1440), `square`, `frame` (the scene's
@@ -102,8 +123,9 @@ ascii-dioramas/
     materials.js  tag() (class in alpha), wind shaders, textures, vertex colours
     terrain.js    buildLand (height + trail grids), terrainMesh, waterPlane, sea / cloud shaders
     fill.js       grass, flowers, trees, rocks, drifting particles
-    glyphs.js     glyph atlas, glyph pass builder, tilt-shift pass
+    glyphs.js     glyph atlas, glyph pass (cell step + screen step), tilt-shift pass
     display.js    resolutions, device profiles, render size and grid, camera framing
+    quality.js    quality tiers, device detection, frame-time governor, grass thinning
     title.js      scene title overlay
     music.js      generative polyrhythm music: Web Audio instruments, reverb, beat scheduler
     controls.js   orbit and zoom gestures, hidden menu, keys, video recording

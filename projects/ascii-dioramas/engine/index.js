@@ -6,3 +6,4 @@ export * from './glyphs.js';
 export { runDiorama, readFlags } from './run.js';
 export { mountMusic, renderMusic, scoreLabel, INSTRUMENTS } from './music.js';
 export { RESOLUTIONS, PROFILES, layout, frameCamera } from './display.js';
+export { Q, TIERS, onTier } from './quality.js';

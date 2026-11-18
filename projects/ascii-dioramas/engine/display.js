@@ -13,14 +13,14 @@ const PRESET_PROFILE = { phone: 'phone', 'phone-land': 'phone', tablet: 'tablet'
 
 /**
  * Device classes. `budget` caps render pixels (the 3D pass and both post passes run per pixel);
- * `cellScale` grows glyph cells on big, dense screens so characters stay readable;
- * `shadow` is the shadow-map size.
+ * `cellScale` grows glyph cells on big, dense screens so characters stay readable.
+ * (How much work each frame does is the quality tier's job; see quality.js.)
  */
 export const PROFILES = {
-  phone: { budget: 2.2e6, cellScale: 1, shadow: 2048 },
-  tablet: { budget: 3.2e6, cellScale: 1.05, shadow: 4096 },
-  desktop: { budget: 4.2e6, cellScale: 1.15, shadow: 4096 },
-  large: { budget: 6.5e6, cellScale: 1.3, shadow: 4096 },
+  phone: { budget: 2.2e6, cellScale: 1 },
+  tablet: { budget: 3.2e6, cellScale: 1.05 },
+  desktop: { budget: 4.2e6, cellScale: 1.15 },
+  large: { budget: 6.5e6, cellScale: 1.3 },
 };
 
 /** Parse ?res=: a preset name, "frame" (the scene's own composed size), or "<w>x<h>". */
