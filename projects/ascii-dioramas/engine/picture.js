@@ -9,6 +9,7 @@ import { g } from './glyphs.js';
 import { glf } from './noise.js';
 import { runDiorama, readFlags } from './run.js';
 import { estimateDepth } from './depth-browser.js';
+import { Q, onTier } from './quality.js';
 
 /** Classes a picture is split into (the class view colours them with CLASS_COLORS). */
 export const PIC_CLS = { sky: 1, water: 2, foliage: 3, warm: 4, sand: 5, ground: 6, dark: 7, bright: 8, wall: 9 };
@@ -130,11 +131,17 @@ varying vec2 vUv;
 void main(){ float k = pow(smoothstep(uBlur.x,uBlur.y,abs(textureLod(uDepth,vUv,1.).r-uFocus)),1.6); gl_FragColor = vec4(k,k,k,1.); }`,
   });
   const hasDepth = () => uniforms.uHasDepth.value > .5;
-  const segs = parallax ? 360 : 1; // depth may arrive later (estimated in the browser)
-  const geo = new THREE.PlaneGeometry(1, 1, segs, Math.max(1, Math.round(segs / imgAspect())));
-  const mesh = new THREE.Mesh(geo, colorMat); mesh.frustumCulled = false;
+  // relief detail follows the quality tier (depth may arrive later, so the grid is always there)
+  const SEGS = { high: 360, mid: 240, low: 160 };
+  const grid = (segs) => new THREE.PlaneGeometry(1, 1, segs, Math.max(1, Math.round(segs / imgAspect())));
+  const mesh = new THREE.Mesh(grid(parallax ? SEGS[Q.name] : 1), colorMat); mesh.frustumCulled = false;
   const scene = new THREE.Scene(); scene.add(mesh);
-  const blurMesh = new THREE.Mesh(geo, blurMat); blurMesh.frustumCulled = false;
+  const blurMesh = new THREE.Mesh(mesh.geometry, blurMat); blurMesh.frustumCulled = false;
+  if (parallax) onTier((q) => {
+    const want = SEGS[q.name], has = mesh.geometry.parameters.widthSegments;
+    if (want === has) return;
+    const old = mesh.geometry; mesh.geometry = blurMesh.geometry = grid(want); old.dispose();
+  });
   const blurScene = new THREE.Scene(); blurScene.add(blurMesh);
   const blurRT = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true });
 
@@ -195,9 +202,10 @@ const loadTexture = (url, srgb = true) => new THREE.TextureLoader().loadAsync(ur
  * Run a picture as a diorama. `src` is any image URL the page may load; `depth` an optional
  * depth map for it (tools/depth.py: white near, black far), or 'auto' to estimate one in the
  * browser right away; `cell` is the glyph cell size in image pixels. Dropping an image file on
- * the page swaps the picture. A picture without depth shows flat, with an "Add depth" button
- * that estimates it on this device (depth-browser.js); after the first time, dropped pictures
- * get depth automatically.
+ * the page, or "Choose image", swaps the picture (read locally, never uploaded). A picture without
+ * depth shows flat, with an "Add depth" button that estimates it on this device
+ * (depth-browser.js); after the first time, new pictures get depth automatically (not on the
+ * low tier). The relief's grid detail follows the quality tier.
  * Classifier: `horizon` (0 bottom .. 1 top, used without depth), `smooth`, `gray`, `skyDepth`,
  * `groundSlope`. Depth: `near`, `far`, `focus` (inverse depth in focus), `blur` ([sharp, full]
  * distance from focus), `sway` (auto camera sway in degrees), `parallax`. `rules`, `glyphs` and
@@ -209,8 +217,10 @@ export async function runPicture({ src, depth = null, title, cell = [6, 12], hor
   const [texture, depthTex] = await Promise.all([loadTexture(src), depth && !auto ? loadTexture(depth, false) : null]);
   const { width: w, height: h } = texture.image;
   const source = pictureSource(texture, depthTex, { horizon, smooth, gray, skyDepth, groundSlope, ...depthOpts });
-  const button = depthButton(source, src, { show: readFlags().ui });
-  addDrop(source, button);
+  const show = readFlags().ui;
+  const bar = toolbar(show);
+  const button = depthButton(source, src, { show, bar });
+  addUpload(source, button, bar);
   if (auto) button.run();
   return runDiorama({
     title, size: [w, h], grid: [Math.round(w / cell[0]), Math.round(h / cell[1])],
@@ -219,30 +229,48 @@ export async function runPicture({ src, depth = null, title, cell = [6, 12], hor
   });
 }
 
-/** Drag an image file onto the page to see it as glyphs; once depth has been used, it is estimated too. */
-function addDrop(source, button) {
+/**
+ * Bring your own picture: a "Choose image" button (works on phones too) and drag-and-drop.
+ * Files are read locally; nothing is uploaded anywhere. Once depth has been used, a new picture
+ * gets depth too.
+ */
+function addUpload(source, button, bar) {
   let lastUrl = null;
-  addEventListener('dragover', (e) => e.preventDefault());
-  addEventListener('drop', async (e) => {
-    e.preventDefault();
-    const f = [...(e.dataTransfer?.files ?? [])].find(f => f.type.startsWith('image/'));
-    if (!f) return;
+  async function use(f) {
+    if (!f?.type.startsWith('image/')) return;
     if (lastUrl) URL.revokeObjectURL(lastUrl);
     const url = lastUrl = URL.createObjectURL(f);
     source.setImage(await loadTexture(url));
     button.picture(url);
-  });
+  }
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
+  input.style.display = 'none';
+  input.addEventListener('change', () => { use(input.files?.[0]); input.value = ''; });
+  const choose = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Choose image' });
+  choose.title = 'Show your own picture as glyphs. It is read on this device, not uploaded.';
+  choose.style.cssText = BUTTON_CSS; choose.addEventListener('click', () => input.click());
+  bar.prepend(choose, input);
+  addEventListener('dragover', (e) => e.preventDefault());
+  addEventListener('drop', (e) => { e.preventDefault(); use([...(e.dataTransfer?.files ?? [])].find(f => f.type.startsWith('image/'))); });
 }
 
-const BUTTON_CSS = `position:fixed;left:14px;bottom:14px;z-index:20;padding:6px 11px;border-radius:3px;cursor:pointer;
+const BUTTON_CSS = `padding:6px 11px;border-radius:3px;cursor:pointer;
   font:italic 15px/1.3 "EB Garamond",Garamond,Georgia,serif;color:#f2e6cc;background:rgba(20,16,12,.6);
   border:1px solid rgba(242,230,204,.28);box-shadow:0 4px 16px rgba(0,0,0,.35)`;
+
+/** Bottom-left row for the picture controls; hidden with ?ui=off. */
+function toolbar(show) {
+  const bar = document.createElement('div');
+  bar.style.cssText = `position:fixed;left:14px;bottom:14px;z-index:20;display:${show ? 'flex' : 'none'};gap:8px;flex-wrap:wrap;max-width:calc(100vw - 28px)`;
+  document.body.append(bar);
+  return bar;
+}
 
 /**
  * "Add depth" control for pictures without a depth map. Nothing is downloaded until it is
  * clicked (or ?depth=auto). After one success, later pictures get depth without asking.
  */
-function depthButton(source, firstUrl, { show }) {
+function depthButton(source, firstUrl, { show, bar }) {
   const el = document.createElement('button');
   el.type = 'button'; el.style.cssText = BUTTON_CSS;
   let url = firstUrl, busy = false, enabled = false;
@@ -269,10 +297,13 @@ function depthButton(source, firstUrl, { show }) {
     } finally { el.disabled = false; visible(); }
   }
   el.addEventListener('click', run);
-  idle(); document.body.append(el); visible();
+  idle(); bar.append(el); visible();
   return {
     run,
-    /** A new picture was shown (flat): estimate right away if depth is already in use. */
-    picture(next) { url = next; if (enabled) run(); else { idle(); visible(); } },
+    /**
+     * A new picture was shown (flat): estimate right away if depth is already in use, except on
+     * the low tier, where each estimate is a long pause on the CPU and stays the viewer's choice.
+     */
+    picture(next) { url = next; if (enabled && Q.name !== 'low') run(); else { idle(); visible(); } },
   };
 }

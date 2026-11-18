@@ -50,12 +50,11 @@ export function homepageHtml(scenes, { base = '', home = 'https://github.com/san
   const items = scenes.filter(name => !TOOLS.has(name)).map(name => {
     const m = meta(name);
     return `    <li>
-      <a class="scene-link" href="${base}/${name}/">
-        <img class="thumb" src="${base}/assets/thumbs/${name}.jpg" alt="${m.title}" loading="lazy">
-        <div class="scene-text">
-          <strong>${m.title}</strong> <span class="dim">${m.canvas}</span>
-          <br><span class="scene-desc">${m.desc}</span>
-        </div>
+      <a class="card" href="${base}/${name}/">
+        <img class="cover" src="${base}/assets/thumbs/${name}.jpg" alt="${m.title}, frozen at 8 seconds" width="600" height="800" loading="lazy">
+        <span class="card-title">${m.title}</span>
+        <span class="card-meta">${m.canvas}</span>
+        <span class="card-desc">${m.desc}</span>
       </a>
     </li>`;
   }).join('\n');
@@ -86,6 +85,19 @@ export function homepageHtml(scenes, { base = '', home = 'https://github.com/san
   hr { border: none; border-top: 1px solid var(--rule); margin: 0.4rem 0 1rem; }
   h2 { font-weight: 400; font-size: 1.3rem; margin: 2rem 0 0.6rem; padding-bottom: 0.15rem; border-bottom: 1px dashed var(--rule); }
   code { font-size: 0.85em; }
+  /* scene cards: portrait covers (assets/thumbs, captured by tools/thumbs.mjs), title and line below */
+  .cards { list-style: none; padding: 0; margin: 0.4rem 0 0; display: grid; gap: 1.6rem 1.1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(200px, 42vw), 1fr)); }
+  .card { display: block; color: inherit; text-decoration: none; }
+  .card:hover { text-decoration: none; }
+  .cover { display: block; width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; background: #111;
+    border: 1px solid var(--rule); border-radius: 3px; transition: border-color 0.15s; }
+  .card:hover .cover, .card:focus-visible .cover { border-color: var(--link); }
+  .card:focus-visible { outline: none; }
+  .card-title { display: block; font-size: 1.15rem; line-height: 1.2; margin-top: 0.55rem; }
+  .card:hover .card-title { color: var(--link); }
+  .card-meta { display: block; color: var(--muted); font-size: 0.8rem; font-style: italic; margin-top: 0.1rem; }
+  .card-desc { display: block; color: var(--muted); font-size: 0.9rem; line-height: 1.38; margin-top: 0.3rem; }
   .scenes { list-style: none; padding: 0; margin: 0; }
   .scenes li { margin: 0.8rem 0; }
   .scene-link { display: flex; align-items: flex-start; gap: 1rem; color: inherit; text-decoration: none; padding: 0.5rem; margin: -0.5rem; border-radius: 4px; transition: background 0.15s; }
@@ -162,7 +174,7 @@ ${hasPicture ? `  <nav class="tabs" role="tablist" aria-label="Sections">
     <a class="tab" role="tab" id="tab-picture" href="#picture" aria-controls="picture" aria-selected="false">Any picture</a>
   </nav>
 ` : '  <h2>Scenes</h2>\n'}  <section class="panel" id="dioramas" role="tabpanel" aria-labelledby="tab-dioramas">
-  <ul class="scenes">
+  <ul class="cards">
 ${items}
   </ul>
   <p class="note">Scenes fill any screen, phone to ultrawide. <kbd>S</kbd> plays each scene's own polyrhythmic music. Space pauses. Add <code>?fox=still</code>, <code>?fox=off</code>, <code>?tilt=off</code>, <code>?title=off</code>, <code>?t=12</code> (frozen at 12&nbsp;s), <code>?q=low</code> (quality: <code>high</code>, <code>mid</code>, <code>low</code>) or <code>?res=phone</code> (also <code>tablet</code>, <code>laptop</code>, <code>desktop</code>, <code>4k</code>, <code>ultrawide</code>, <code>1280x720</code>) to any scene's address.</p>
@@ -202,8 +214,8 @@ function pictureTab(base) {
   <a class="pic-hero" href="${base}/picture/"><img src="${base}/assets/thumbs/picture-wide.jpg" alt="The Venice test photo drawn as glyphs" loading="lazy"></a>
   <ol class="how">
     <li><a href="${base}/picture/">Open it</a> with the test photo, a Venice waterfront at sunset, which comes with a depth map: the picture sways gently in 3D and the blur follows real distance.</li>
-    <li>Drop any image file on that page to see it as glyphs.</li>
-    <li>Click <em>Add depth</em> to estimate its depth with Depth Anything V2, run in your browser. The picture never leaves your device; the model is about 50&nbsp;MB, downloaded once.</li>
+    <li>Use <em>Choose image</em> in its corner, or drop an image file on the page, to see your own picture as glyphs. It is read on your device; nothing is uploaded.</li>
+    <li>Click <em>Add depth</em> to estimate its depth with Depth Anything V2, run in your browser. The model is about 50&nbsp;MB, downloaded once; after that each picture takes a fraction of a second on a GPU, a few seconds without one.</li>
   </ol>
   <p class="note">Flags: <code>?img=&lt;url&gt;</code> loads another picture, <code>?depth=auto</code> estimates depth on load, <code>?depth=off</code> shows it flat, <code>?view=classes</code> shows the surfaces it guessed.</p>
   </section>`;

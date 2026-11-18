@@ -126,9 +126,10 @@ guessed from its colour, its local texture and its height in the frame:
 - other hues become **water** (blue), **foliage** (green, dim olive),
   **sand** (straw, ochre) or **warm** (reds, browns)
 
-Each class has a default glyph family. `?img=<url>` loads another image (same
-origin, or a server that allows cross-origin loads), and dropping an image file
-on the page swaps it. `?view=classes` shows the guess. `runPicture()` in
+Each class has a default glyph family. **Choose image** (bottom left) or
+dropping an image file on the page swaps the picture; it is read on the device,
+nothing is uploaded. `?img=<url>` loads another image (same origin, or a server
+that allows cross-origin loads). `?view=classes` shows the guess. `runPicture()` in
 `engine/picture.js` takes the horizon, thresholds, rules and tilt settings.
 
 Colour alone has limits. In the Venice photo, dusk-grey water and blue-tinted
@@ -176,7 +177,9 @@ it runs the same model in the page through
   about 0.15 s for each later picture. Everywhere else it runs the 27 MB `int8`
   weights in WebAssembly, about 5 s per picture, and the page pauses meanwhile.
   ONNX Runtime's worker mode avoided the pause but measured about 6× slower.
-- After the first success, later dropped pictures get depth automatically.
+- After the first success, later pictures get depth automatically, except on
+  the `low` quality tier, where each estimate stays the viewer's choice. The
+  relief's grid is 360, 240 or 160 segments wide on the high, mid and low tiers.
 
 ## Project structure
 
@@ -244,7 +247,8 @@ runDiorama({
   Nothing may use transparency, because blending would mix the class values.
 
 New scenes are picked up from `scenes/<name>/main.js`; add a line to
-`SCENE_META` in `site.mjs` and a thumbnail in `assets/thumbs/` for the homepage.
+`SCENE_META` in `site.mjs` and a thumbnail in `assets/thumbs/` for the homepage
+(`node tools/thumbs.mjs` captures every scene's 3:4 cover from the running dev server).
 
 ## Motion
 
