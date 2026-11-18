@@ -89,8 +89,8 @@ after editing a figure, build again: `--link` does not pick it up on refresh.
 The output is deterministic, so `geo.js` only changes when the data does. `--seed N` tries a different
 arrangement; the knobs (spacing, landscape stretch, border wobble, coast noise) are in the `P` object at
 the top of `generate.mjs`. On the page, `LABEL` in `app.js` sets how big labels are on screen: they
-hold a minimum size while zoomed out, down to the whole-map view, and stop growing past a maximum
-when zoomed in.
+hold a minimum size while zoomed out, down to the whole-map view, follow the map when zoomed in up to
+a knee, then grow with the square root of the zoom up to a maximum.
 
 ## A new atlas
 
