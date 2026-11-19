@@ -72,6 +72,20 @@ h2 {
 .projects li { margin: 0.3rem 0; }
 .projects .empty { color: var(--muted); font-style: italic; list-style: none; margin-left: -1.2rem; }
 
+/* An entry with a cover (assets/covers, drawn by scripts/covers.mjs): cover left, text right. */
+.projects li.with-cover {
+  list-style: none;
+  margin: 1rem 0 1rem -1.2rem;
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  gap: 1rem;
+  align-items: center;
+}
+.projects .cover img { display: block; width: 100%; height: auto; }
+@media (max-width: 480px) {
+  .projects li.with-cover { grid-template-columns: 3.4rem 1fr; gap: 0.8rem; }
+}
+
 footer {
   margin-top: 3rem;
   font-size: 0.85rem;
