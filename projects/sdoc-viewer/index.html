@@ -538,19 +538,23 @@
       <li><b>Structure</b> — the Zip entries inside the file; click a <code>.note</code> or <code>.dat</code> to read it as text or hex.</li>
       <li><b>Raw</b> — the parsed document, the engine's diagnostics, and the Zip manifest, as JSON.</li>
     </ul>
-    <p>To get a page out, hover it and choose <b>Save PNG</b>. Pages are rasterized at
-      2× their size (3200 × 4524) on an opaque background, so they stay sharp when
-      printed. On a phone the button is always visible.</p>
+
+    <h2>Getting it out</h2>
+    <ul>
+      <li><b>Download PDF</b> — every page of the note in one PDF, from the button above
+        the pages. Always in light mode, on A4-wide pages.</li>
+      <li><b>Save PNG</b> — a single page; hover it and choose Save PNG. On a phone the
+        button is always visible.</li>
+    </ul>
+    <p class="small">Both are rasterized at 2× the page size (3200 px wide) on an opaque
+      background, so they stay sharp when printed. Handwriting is kept as drawn, but typed
+      text in the PDF can't be selected or searched.</p>
 
     <h2>How it works</h2>
     <p>An <code>.sdocx</code> is a Zip container, opened here with JSZip. Pages are
       decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
       a reverse-engineered parser written in Rust and compiled to WebAssembly. It
       renders each page to SVG, and the viewer shows that SVG as an image.</p>
-    <p>An earlier version drew the strokes onto a canvas by hand. It broke on anything
-      built from imported PDFs or slides: those pages came out blank, and one garbage
-      pen width in the file (<code>4.05e+31</code>) turned into a page-filling black
-      rectangle. Handing rendering to the engine fixed both.</p>
     <p class="small">Each page SVG is 5–14 MB, so pages render as you scroll rather than
       all at once. The color mode is baked into the SVG, so switching theme re-renders
       the pages you can see.</p>
