@@ -573,19 +573,20 @@
 
 <script type="module">
 import JSZip from 'jszip';
-import * as sdocx from '@twango/sdocx';
+import initSdocx, * as sdocx from '@twango/sdocx';
+import sdocxWasmUrl from '@twango/sdocx/sdocx_bg.wasm?url';
 import sampleUrl from './test/Testing doc.sdocx?url';
 
 /* ---------------------------------------------------------------
    Ink engine loader.
-   @twango/sdocx ships a bundler-target wasm-bindgen build: the wasm
-   is instantiated at import time (top-level await, handled by Vite)
-   and by the time this module runs the engine is already live — we
-   just verify the export and flip the chip.
+   @twango/sdocx 1.x ships a web-target wasm-bindgen build: nothing
+   runs at import time, and `init()` must resolve before any session
+   is built. The wasm URL is imported explicitly so Vite fingerprints
+   it and the relative `base: './'` still resolves under a subpath.
 
-   We use `DocumentSession` (0.4.0+) rather than the bare `parse()`.
+   We use `DocumentSession` rather than the bare `parse()`.
    The session renders each page to SVG in Rust, which is the only
-   path that draws `page.elements` — imported slides/photos, carried
+   path that draws page elements — imported slides/photos, carried
    as `Image` entries whose `media_index` cannot be resolved from JS
    (it restarts at 0 per page and no offset into the flat
    `metadata.media_assets` list reproduces the right mapping).
@@ -620,6 +621,7 @@ function setEngine(state, msg){
 async function loadInk(){
   setEngine('busy', 'starting up…');
   try{
+    await initSdocx({ module_or_path: sdocxWasmUrl });
     if(typeof sdocx.DocumentSession !== 'function'){
       throw new Error('no DocumentSession export. exports: ' + Object.keys(sdocx).join(', '));
     }
@@ -920,8 +922,9 @@ function renderPages(view){
   for(let i = 0; i < n; i++){
     const entry = visible[i] || {};
     const page = entry.page || {};
-    const strokes = (page.strokes || []).length;
-    const images  = (page.elements || []).length;
+    const objects = page.objects || [];
+    const strokes = objects.filter(o => o.content?.Stroke).length;
+    const images  = objects.filter(o => o.content?.Element?.PlacedImage).length;
 
     const pw = document.createElement('div');
     pw.className = 'page-wrap';
