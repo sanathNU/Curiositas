@@ -175,10 +175,24 @@ function capitals(r, coast) {
   return sites;
 }
 
+/**
+ * A uniform random order of 0..n-1 from exactly n - 1 draws (Fisher-Yates, in Durstenfeld's in-place form;
+ * Knuth, TAOCP vol. 2, sec. 3.4.2, Algorithm P). Sorting with a random comparator would leave the order, and
+ * how many draws it takes, to the engine's sort.
+ */
+function shuffle(r, n) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /** Four tints, no two neighbouring provinces alike: greedy colouring retried in random orders. */
 function fourColour(r, cells) {
   for (let t = 0; t < 300; t++) {
-    const order = cells.map((_, i) => i).sort(() => r() - 0.5), col = new Array(cells.length).fill(-1);
+    const order = shuffle(r, cells.length), col = new Array(cells.length).fill(-1);
     let ok = true;
     for (const i of order) {
       const used = new Set(cells[i].nbrs.map(j => col[j]));
