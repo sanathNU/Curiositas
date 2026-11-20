@@ -117,21 +117,67 @@
   /* ---- workspace ---- */
   .work{flex:1; display:flex; min-height:0}
   .side{
-    width:266px; flex:0 0 auto; border-right:1px solid var(--line);
+    width:284px; flex:0 0 auto; border-right:1px solid var(--line);
     background:var(--paper-2); display:flex; flex-direction:column; min-height:0;
   }
   .side h3{
-    margin:0; padding:16px 18px 8px;
-    font-size:14px; color:var(--muted); font-weight:600;
+    margin:0; padding:14px 18px 6px;
+    font-size:13px; color:var(--muted); font-weight:600;
   }
-  .notes{overflow:auto; padding:0 10px 14px}
-  .note-item{padding:9px 11px; border-radius:var(--radius); cursor:pointer; margin-bottom:2px}
+  .lib{display:flex; flex-direction:column; gap:1px; padding:10px 10px 0}
+  .lib-row{
+    appearance:none; border:none; background:none; color:var(--text); cursor:pointer;
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    padding:7px 10px; border-radius:var(--radius); font:inherit; font-size:15px;
+  }
+  .lib-row:hover{background:var(--fold)}
+  .lib-row.on{background:var(--fold); font-weight:600}
+  .lib-row .nm{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .lib-row .count{margin-left:auto; font-size:13px; font-weight:400; color:var(--faint); font-variant-numeric:tabular-nums}
+  .lib-row .x{
+    display:none; appearance:none; border:none; background:none; cursor:pointer;
+    color:var(--muted); width:22px; height:22px; border-radius:6px; font-size:16px; line-height:1;
+  }
+  .lib-row:hover .x, .lib-row .x:focus-visible{display:inline-block}
+  .lib-row:hover .count{display:none}
+  .lib-row .x:hover{color:var(--danger); background:var(--paper-2)}
+  .lib-head{display:flex; align-items:center; justify-content:space-between; padding-right:12px}
+  .lib-head .icon-btn{width:28px; height:28px; font-size:19px}
+  .collections{display:flex; flex-direction:column; gap:1px; padding:0 10px; max-height:30vh; overflow:auto}
+  .notes{flex:1; overflow:auto; padding:0 10px 14px; min-height:0}
+  .note-item{position:relative; padding:9px 66px 9px 11px; border-radius:var(--radius); cursor:pointer; margin-bottom:2px}
   .note-item:hover{background:var(--fold)}
   .note-item.active{background:var(--accent); color:var(--on-accent)}
   .note-item.active .m{color:inherit; opacity:.8}
   .note-item .n{font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .note-item .m{font-size:13px; color:var(--faint); margin-top:2px}
-  .side .empty-hint{padding:10px 18px; color:var(--muted); font-size:15px}
+  .note-item .acts{position:absolute; right:6px; top:50%; transform:translateY(-50%); display:flex; gap:2px}
+  .note-item .acts button{
+    appearance:none; border:none; background:none; color:inherit; cursor:pointer;
+    width:28px; height:28px; border-radius:6px; font-size:16px; line-height:1; opacity:.5;
+  }
+  .note-item .acts button:hover, .note-item .acts button:focus-visible{opacity:1; background:color-mix(in srgb, currentColor 12%, transparent)}
+  .note-item .star[aria-pressed="true"]{opacity:1; color:#d9a400}
+  .note-item.active .star[aria-pressed="true"]{color:inherit}
+  .side .empty-hint{padding:6px 10px; color:var(--muted); font-size:14px}
+  .lib-foot{padding:10px 18px 14px; font-size:13px; color:var(--faint); border-top:1px solid var(--line)}
+
+  /* ---- note actions menu ---- */
+  .menu{
+    position:fixed; z-index:60; min-width:210px; max-width:280px; padding:5px;
+    background:var(--paper); color:var(--text); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 14px 36px -14px var(--shadow);
+  }
+  .menu .menu-label{padding:6px 10px 4px; font-size:13px; color:var(--muted); font-weight:600}
+  .menu button{
+    appearance:none; border:none; background:none; color:inherit; cursor:pointer; font:inherit;
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    padding:7px 10px; border-radius:6px; font-size:15px;
+  }
+  .menu button:hover, .menu button:focus-visible{background:var(--fold); outline:none}
+  .menu .tick{width:14px; flex:0 0 auto; color:var(--accent)}
+  .menu .danger{color:var(--danger)}
+  .menu hr{border:none; border-top:1px solid var(--line-soft); margin:4px 0}
 
   .main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--paper)}
   .tabs{
@@ -348,6 +394,12 @@
   body[data-state="empty"] #openBtn,
   body[data-state="empty"] .sidebar-toggle{display:none}
   body[data-state="empty"] .topbar{border-bottom-color:transparent}
+  /* library has notes but none is open: sidebar stays, the hero fills the main area */
+  body[data-state="library"] .tabs,
+  body[data-state="library"] .toolrow,
+  body[data-state="library"] .status,
+  body[data-state="library"] .brand,
+  body[data-state="library"] #engineChip{display:none}
 
   /* ---- sidebar toggle (narrow screens only) ---- */
   .sidebar-toggle{display:none}
@@ -434,10 +486,19 @@
 <div class="work">
   <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
   <aside class="side">
-    <h3>Your files</h3>
-    <div class="notes" id="noteList">
-      <div class="empty-hint">No files yet. Open a <code>.sdocx</code> to begin.</div>
+    <nav class="lib" id="libNav" aria-label="Library">
+      <button class="lib-row on" data-view="all"><span class="nm">All notes</span><span class="count" id="cntAll">0</span></button>
+      <button class="lib-row" data-view="recent"><span class="nm">Recent</span><span class="count" id="cntRecent">0</span></button>
+      <button class="lib-row" data-view="favorites"><span class="nm">Favorites</span><span class="count" id="cntFav">0</span></button>
+    </nav>
+    <div class="lib-head">
+      <h3>Collections</h3>
+      <button class="icon-btn" id="newCollection" title="New collection" aria-label="New collection">+</button>
     </div>
+    <div class="collections" id="collectionList"></div>
+    <h3 id="listTitle">All notes</h3>
+    <div class="notes" id="noteList"></div>
+    <div class="lib-foot" id="storageInfo"></div>
   </aside>
 
   <section class="main">
@@ -530,6 +591,12 @@
     <p>Everything happens locally. The file is <b>never uploaded</b> — no server, no
       tracking, no external requests — which is also what makes it safe to host as a
       plain static page.</p>
+
+    <h2>Your library</h2>
+    <p>Notes you open are kept in this browser, so they're still here next time. Find them
+      under <b>All notes</b>, <b>Recent</b> and <b>Favorites</b> (star a note), and sort them
+      into <b>collections</b> from each note's ⋯ menu. Removing a note from the library
+      deletes this browser's copy only; your original file isn't touched.</p>
 
     <h2>What it shows</h2>
     <ul>
@@ -634,7 +701,7 @@ async function loadInk(){
     setEngine('ready', 'ready');
     // Parse anything ingested before the engine came up, then repaint.
     for(const n of notes) if(!n.doc && n.pendingBuf) openSession(n, n.pendingBuf);
-    renderNoteList();
+    renderLibrary();
     if(current) renderActive();
   }catch(e){
     console.error('[ink] init failed', e);
@@ -682,6 +749,8 @@ let zoom = 1;
    Helpers
 ----------------------------------------------------------------*/
 const $ = id => document.getElementById(id);
+// Yield so pending UI paints; the timeout covers background tabs, where frames never fire.
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 50); });
 function fmtBytes(n){
   if(n == null) return '—';
   if(n < 1024) return n + ' B';
@@ -718,6 +787,44 @@ function safeStringify(obj, space=2){
 }
 
 /* ---------------------------------------------------------------
+   Library: notes and collections kept in this browser (IndexedDB).
+   Entries hold the file itself; a note is only parsed when opened.
+----------------------------------------------------------------*/
+const RECENT_LIMIT = 12;
+let db = null;           // null when the browser refuses storage: library lasts until reload
+let library = [];        // { id, name, size, addedAt, openedAt, favorite, collections[], pages, file }
+let collections = [];    // { id, name, createdAt }
+let libView = 'all';     // all | recent | favorites | col:<id>
+
+const idbReq = req => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
+const dbStore = (name, mode) => db.transaction(name, mode).objectStore(name);
+const dbAll = name => db ? idbReq(dbStore(name, 'readonly').getAll()) : Promise.resolve([]);
+async function dbPut(name, value){ if(db) await idbReq(dbStore(name, 'readwrite').put(value)); }
+async function dbDelete(name, id){ if(db) await idbReq(dbStore(name, 'readwrite').delete(id)); }
+
+async function openLibrary(){
+  try{
+    const req = indexedDB.open('unsdocx', 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore('notes', { keyPath: 'id' });
+      req.result.createObjectStore('collections', { keyPath: 'id' });
+    };
+    db = await idbReq(req);
+    [library, collections] = await Promise.all([dbAll('notes'), dbAll('collections')]);
+  }catch(e){
+    console.warn('[library] browser storage unavailable; notes last until reload', e);
+    db = null;
+  }
+  renderLibrary();
+  renderActive();
+}
+
+async function saveEntry(entry){
+  try{ await dbPut('notes', entry); }
+  catch(e){ console.error('[library] save failed', e); }
+}
+
+/* ---------------------------------------------------------------
    File intake
 ----------------------------------------------------------------*/
 async function ingest(fileList){
@@ -733,49 +840,85 @@ async function ingest(fileList){
   }
 }
 
+// Same name and size counts as the same note, so re-opening a file doesn't duplicate it.
 async function ingestInner(fileList){
+  let last = null;
   for(const file of fileList){
-    const note = { id: crypto.randomUUID(), name: file.name, size: file.size,
-                   entries: [], media: [], meta: [], pageFiles: [],
-                   session: null, doc: null, layout: null, diagnostics: [], inkError: null };
-    const buf = await file.arrayBuffer();
-
-    // 1. Zip container (works for both .sdoc and .sdocx)
-    try{
-      const zip = await JSZip.loadAsync(buf);
-      const paths = Object.keys(zip.files).filter(p => !zip.files[p].dir);
-      for(const path of paths){
-        const f = zip.files[path];
-        const kind = classify(path);
-        const size = f._data ? (f._data.uncompressedSize ?? null) : null;
-        const entry = { path, kind, size, f };
-        note.entries.push(entry);
-        if(kind === 'ink') note.pageFiles.push(entry);
-        if(kind === 'meta') note.meta.push(entry);
-        if(IMG.test(path)){
-          const blob = await f.async('blob');
-          note.media.push({ path, type:'image', url: URL.createObjectURL(blob), size });
-        }else if(AUD.test(path)){
-          const blob = await f.async('blob');
-          note.media.push({ path, type:'audio', url: URL.createObjectURL(blob), size });
-        }
+    let entry = library.find(e => e.name === file.name && e.size === file.size);
+    if(!entry){
+      entry = { id: crypto.randomUUID(), name: file.name, size: file.size, addedAt: Date.now(),
+                openedAt: 0, favorite: false, pages: null, file,
+                collections: libView.startsWith('col:') ? [libView.slice(4)] : [] };
+      library.push(entry);
+      try{ await dbPut('notes', entry); }
+      catch(e){
+        console.error('[library] save failed', e);
+        alert(`Couldn't keep ${file.name} in this browser, so it won't be here after a reload.\n\n${e && e.message || e}`);
       }
-    }catch(e){
-      note.zipError = String(e && e.message || e);
     }
-
-    // 2. Ink parse (needs the WASM engine). This is synchronous wasm work and
-    //    runs ~1.5s on a 10 MB note, so yield a frame first — otherwise the
-    //    busy veil never gets a chance to paint.
-    await new Promise(r => requestAnimationFrame(() => r()));
-    if(ink) openSession(note, new Uint8Array(buf));
-    else note.pendingBuf = new Uint8Array(buf); // keep for later if engine loads
-
-    notes.push(note);
+    if(!notes.some(n => n.id === entry.id)) await parseNote(entry, await file.arrayBuffer());
+    last = entry;
   }
-  renderNoteList();
-  if(!current && notes.length) select(notes[notes.length-1].id);
-  else renderActive();
+  if(last) await openNote(last.id);
+}
+
+async function openNote(id){
+  const entry = library.find(e => e.id === id);
+  if(!entry) return;
+  let note = notes.find(n => n.id === id);
+  if(!note){
+    showBusy(`Opening ${entry.name}…`);
+    try{ note = await parseNote(entry, await entry.file.arrayBuffer()); }
+    catch(e){
+      console.error('[library] open failed', e);
+      alert(`Couldn't open ${entry.name}:\n\n${e && e.message || e}`);
+      return;
+    }finally{ hideBusy(); }
+  }
+  entry.openedAt = Date.now();
+  entry.pages ??= pageCount(note);
+  saveEntry(entry);
+  select(id);
+}
+
+async function parseNote(entry, buf){
+  const note = { id: entry.id, name: entry.name, size: entry.size,
+                 entries: [], media: [], meta: [], pageFiles: [],
+                 session: null, doc: null, layout: null, diagnostics: [], inkError: null };
+
+  // 1. Zip container (works for both .sdoc and .sdocx)
+  try{
+    const zip = await JSZip.loadAsync(buf);
+    const paths = Object.keys(zip.files).filter(p => !zip.files[p].dir);
+    for(const path of paths){
+      const f = zip.files[path];
+      const kind = classify(path);
+      const size = f._data ? (f._data.uncompressedSize ?? null) : null;
+      const zipEntry = { path, kind, size, f };
+      note.entries.push(zipEntry);
+      if(kind === 'ink') note.pageFiles.push(zipEntry);
+      if(kind === 'meta') note.meta.push(zipEntry);
+      if(IMG.test(path)){
+        const blob = await f.async('blob');
+        note.media.push({ path, type:'image', url: URL.createObjectURL(blob), size });
+      }else if(AUD.test(path)){
+        const blob = await f.async('blob');
+        note.media.push({ path, type:'audio', url: URL.createObjectURL(blob), size });
+      }
+    }
+  }catch(e){
+    note.zipError = String(e && e.message || e);
+  }
+
+  // 2. Ink parse (needs the WASM engine). This is synchronous wasm work and
+  //    runs ~1.5s on a 10 MB note, so yield a frame first — otherwise the
+  //    busy veil never gets a chance to paint.
+  await nextFrame();
+  if(ink) openSession(note, new Uint8Array(buf));
+  else note.pendingBuf = new Uint8Array(buf); // keep for later if engine loads
+
+  notes.push(note);
+  return note;
 }
 
 /* ---------------------------------------------------------------
@@ -798,34 +941,204 @@ function hideBusy(){ $('busyVeil')?.remove(); }
 /* Drives the CSS that hides tabs/toolrow/sidebar until there's something
    to look at. */
 function syncEmptyState(){
-  document.body.dataset.state = notes.length ? 'loaded' : 'empty';
+  document.body.dataset.state = current ? 'loaded' : library.length ? 'library' : 'empty';
 }
 
 /* ---------------------------------------------------------------
-   Sidebar
+   Sidebar: library views, collections, the filtered note list
 ----------------------------------------------------------------*/
-function renderNoteList(){
+const byAdded = (a, b) => b.addedAt - a.addedAt;
+const recentEntries = () => library.filter(e => e.openedAt).sort((a, b) => b.openedAt - a.openedAt).slice(0, RECENT_LIMIT);
+const sortedCollections = () => [...collections].sort((a, b) => a.name.localeCompare(b.name));
+
+function viewEntries(view){
+  if(view === 'recent') return recentEntries();
+  if(view === 'favorites') return library.filter(e => e.favorite).sort(byAdded);
+  if(view.startsWith('col:')) return library.filter(e => e.collections.includes(view.slice(4))).sort(byAdded);
+  return [...library].sort(byAdded);
+}
+
+function viewTitle(view){
+  if(view === 'recent') return 'Recent';
+  if(view === 'favorites') return 'Favorites';
+  if(view.startsWith('col:')) return collections.find(c => c.id === view.slice(4))?.name ?? 'Collection';
+  return 'All notes';
+}
+
+function emptyHint(view){
+  if(!library.length) return 'No notes yet. Open a .sdocx to start your library.';
+  if(view === 'recent') return 'Notes you open show up here.';
+  if(view === 'favorites') return 'Star a note to keep it here.';
+  if(view.startsWith('col:')) return 'Add notes from their ⋯ menu.';
+  return '';
+}
+
+function fmtWhen(ts){
+  const d = new Date(ts), now = new Date();
+  if(d.toDateString() === now.toDateString()) return 'today';
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if(d.toDateString() === y.toDateString()) return 'yesterday';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric',
+    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+}
+
+function renderLibrary(){
+  if(libView.startsWith('col:') && !collections.some(c => c.id === libView.slice(4))) libView = 'all';
+  $('cntAll').textContent = library.length;
+  $('cntRecent').textContent = recentEntries().length;
+  $('cntFav').textContent = library.filter(e => e.favorite).length;
+  document.querySelectorAll('#libNav .lib-row').forEach(b => b.classList.toggle('on', b.dataset.view === libView));
+
+  const cl = $('collectionList');
+  cl.innerHTML = collections.length ? '' : '<div class="empty-hint">None yet.</div>';
+  for(const c of sortedCollections()){
+    const row = document.createElement('div');
+    row.className = 'lib-row' + (libView === 'col:' + c.id ? ' on' : '');
+    row.tabIndex = 0;
+    row.title = 'Double-click to rename';
+    row.innerHTML = '<span class="nm"></span><span class="count"></span>' +
+      '<button class="x" title="Delete collection" aria-label="Delete collection">×</button>';
+    row.querySelector('.nm').textContent = c.name;
+    row.querySelector('.count').textContent = library.filter(e => e.collections.includes(c.id)).length;
+    row.querySelector('.x').onclick = ev => { ev.stopPropagation(); deleteCollection(c); };
+    row.onclick = () => setView('col:' + c.id);
+    row.onkeydown = ev => { if(ev.key === 'Enter') setView('col:' + c.id); };
+    row.ondblclick = () => renameCollection(c);
+    cl.appendChild(row);
+  }
+
+  $('listTitle').textContent = viewTitle(libView);
   const list = $('noteList');
-  if(!notes.length){ list.innerHTML = '<div class="empty-hint">No files yet.</div>'; return; }
-  list.innerHTML = '';
-  for(const n of notes){
+  const items = viewEntries(libView);
+  list.innerHTML = items.length ? '' : `<div class="empty-hint">${escapeHtml(emptyHint(libView))}</div>`;
+  for(const e of items){
     const div = document.createElement('div');
-    div.className = 'note-item' + (current === n ? ' active' : '');
-    const pages = pageCount(n) ?? '·';
-    div.innerHTML = `<div class="n">${escapeHtml(n.name)}</div>
-      <div class="m">${fmtBytes(n.size)} · ${pages} pg · ${n.entries.length} entries</div>`;
-    div.onclick = () => select(n.id);
+    div.className = 'note-item' + (current?.id === e.id ? ' active' : '');
+    div.innerHTML = '<div class="n"></div><div class="m"></div><div class="acts">' +
+      '<button class="star"></button><button class="more" title="More" aria-label="More actions">⋯</button></div>';
+    div.querySelector('.n').textContent = e.name;
+    div.querySelector('.m').textContent = [fmtBytes(e.size), e.pages != null ? `${e.pages} pg` : null,
+      fmtWhen(e.openedAt || e.addedAt)].filter(Boolean).join(' · ');
+    const star = div.querySelector('.star');
+    star.textContent = e.favorite ? '★' : '☆';
+    star.setAttribute('aria-pressed', String(e.favorite));
+    star.title = e.favorite ? 'Remove from favorites' : 'Add to favorites';
+    star.setAttribute('aria-label', star.title);
+    star.onclick = ev => { ev.stopPropagation(); toggleFavorite(e); };
+    div.querySelector('.more').onclick = ev => { ev.stopPropagation(); openNoteMenu(e, ev.currentTarget); };
+    div.onclick = () => openNote(e.id);
     list.appendChild(div);
   }
+
+  const total = library.reduce((s, e) => s + e.size, 0);
+  $('storageInfo').textContent = db
+    ? `${library.length} note${library.length === 1 ? '' : 's'} · ${fmtBytes(total)} kept in this browser`
+    : 'Browser storage is off here, so notes last until you reload.';
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function setView(view){ libView = view; renderLibrary(); }
+
+async function toggleFavorite(e){
+  e.favorite = !e.favorite;
+  renderLibrary();
+  await saveEntry(e);
+}
+
+async function newCollection(){
+  const name = prompt('Name the new collection')?.trim();
+  if(!name) return null;
+  const c = { id: crypto.randomUUID(), name, createdAt: Date.now() };
+  collections.push(c);
+  renderLibrary();
+  try{ await dbPut('collections', c); }catch(err){ console.error('[library] save failed', err); }
+  return c;
+}
+
+async function renameCollection(c){
+  const name = prompt('Rename collection', c.name)?.trim();
+  if(!name || name === c.name) return;
+  c.name = name;
+  renderLibrary();
+  try{ await dbPut('collections', c); }catch(err){ console.error('[library] save failed', err); }
+}
+
+async function deleteCollection(c){
+  if(!confirm(`Delete the collection “${c.name}”? Its notes stay in your library.`)) return;
+  collections = collections.filter(x => x !== c);
+  for(const e of library){
+    if(!e.collections.includes(c.id)) continue;
+    e.collections = e.collections.filter(id => id !== c.id);
+    saveEntry(e);
+  }
+  renderLibrary();
+  try{ await dbDelete('collections', c.id); }catch(err){ console.error('[library] delete failed', err); }
+}
+
+async function toggleInCollection(e, c){
+  e.collections = e.collections.includes(c.id) ? e.collections.filter(id => id !== c.id) : [...e.collections, c.id];
+  renderLibrary();
+  await saveEntry(e);
+}
+
+async function removeNote(e){
+  if(!confirm(`Remove “${e.name}” from this browser? Your original file isn't affected.`)) return;
+  library = library.filter(x => x !== e);
+  const i = notes.findIndex(n => n.id === e.id);
+  if(i >= 0){
+    const n = notes[i];
+    if(current === n) current = null;
+    n.session?.dispose();
+    n.media.forEach(m => URL.revokeObjectURL(m.url));
+    notes.splice(i, 1);
+  }
+  renderLibrary();
+  renderActive();
+  try{ await dbDelete('notes', e.id); }catch(err){ console.error('[library] delete failed', err); }
+}
+
+/* ⋯ menu on a note: collections to toggle, then remove */
+let openMenuEl = null;
+function closeMenu(){ openMenuEl?.remove(); openMenuEl = null; }
+function openNoteMenu(entry, anchor){
+  closeMenu();
+  const m = document.createElement('div');
+  m.className = 'menu';
+  m.setAttribute('role', 'menu');
+  const item = (label, fn, { tick = null, cls = '' } = {}) => {
+    const b = document.createElement('button');
+    b.setAttribute('role', tick === null ? 'menuitem' : 'menuitemcheckbox');
+    if(tick !== null) b.setAttribute('aria-checked', String(tick));
+    if(cls) b.className = cls;
+    b.innerHTML = '<span class="tick"></span><span class="nm"></span>';
+    b.querySelector('.tick').textContent = tick ? '✓' : '';
+    b.querySelector('.nm').textContent = label;
+    b.onclick = async () => { closeMenu(); await fn(); };
+    m.appendChild(b);
+  };
+  const label = document.createElement('div');
+  label.className = 'menu-label';
+  label.textContent = 'Collections';
+  m.appendChild(label);
+  for(const c of sortedCollections()) item(c.name, () => toggleInCollection(entry, c), { tick: entry.collections.includes(c.id) });
+  item('New collection…', async () => { const c = await newCollection(); if(c) await toggleInCollection(entry, c); });
+  m.appendChild(document.createElement('hr'));
+  item('Remove from library', () => removeNote(entry), { cls: 'danger' });
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8)) + 'px';
+  m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + 'px';
+  openMenuEl = m;
+  m.querySelector('button')?.focus();
+}
+window.addEventListener('pointerdown', e => { if(openMenuEl && !openMenuEl.contains(e.target)) closeMenu(); }, true);
 
 function select(id){
   current = notes.find(n => n.id === id) || null;
   setSidebar(false);   // picking a note is the drawer's whole job on mobile
   // late ink parse if the engine arrived after ingest
   if(current && !current.doc && ink && current.pendingBuf) openSession(current, current.pendingBuf);
-  renderNoteList();
+  renderLibrary();
   renderActive();
 }
 
@@ -848,8 +1161,7 @@ function renderActive(){
   if(activeTab !== 'pages') releasePageUrls();  // don't hold page blobs off-tab
 
   if(!current){
-    view.innerHTML = '';
-    view.appendChild(buildEmptyState());
+    showHero(view);
     updateStatus();
     updateCounts();
     return;
@@ -1179,7 +1491,7 @@ async function savePdf(){
     const pages = [];
     for(let i = 0; i < n; i++){
       btn.textContent = `Page ${i + 1} of ${n}…`;
-      await new Promise(r => requestAnimationFrame(() => r()));  // let the label paint
+      await nextFrame();  // let the label paint
       pages.push(await pageJpeg(note, i));
     }
     const base = (note.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
@@ -1320,16 +1632,18 @@ function renderRaw(view){
 /* ---------------------------------------------------------------
    Empty state + wiring
 ----------------------------------------------------------------*/
-function buildEmptyState(){
-  const clone = document.getElementById('emptyState');
-  return clone ? clone : document.createElement('div');
-}
-
-// preserve original empty state node to re-insert
+// The hero is cloned from the page's original markup each time it's shown, so
+// its buttons are wired here rather than once at load.
 const emptyNode = document.getElementById('emptyState').cloneNode(true);
-function reinsertEmpty(){
-  const v = $('view'); v.innerHTML = ''; const n = emptyNode.cloneNode(true);
-  v.appendChild(n); wireDrop(n.querySelector('#drop')); n.querySelector('#openBtn2').onclick = pick;
+function showHero(view){
+  view.innerHTML = '';
+  const n = emptyNode.cloneNode(true);
+  view.appendChild(n);
+  wireDrop(n.querySelector('#drop'));
+  n.querySelector('#openBtn2').onclick = pick;
+  n.querySelector('#sampleBtn').onclick = openSample;
+  n.querySelector('#heroEngine').addEventListener('click', () => { if(inkState === 'off') loadInk(); });
+  setEngine(inkState, engineText.textContent);
 }
 
 const fileInput = $('fileInput');
@@ -1433,15 +1747,24 @@ $('aboutClose').onclick = closeAbout;
 aboutModal.addEventListener('click', e => { if(e.target === aboutModal) closeAbout(); });
 window.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
+  if(openMenuEl){ closeMenu(); return; }
   closeAbout();
   setSidebar(false);
 });
 
+$('libNav').addEventListener('click', e => {
+  const b = e.target.closest('.lib-row');
+  if(b) setView(b.dataset.view);
+});
+$('newCollection').onclick = async () => { const c = await newCollection(); if(c) setView('col:' + c.id); };
+
 syncEmptyState();   // hide the tabs/toolrow/sidebar chrome until a file lands
 
-/* Last: loadInk() repaints through renderNoteList/renderActive, which read
-   consts declared above (`$`, `notes`, `current`). Calling it any earlier is a
-   TDZ error — and one that fails silently into "engine unavailable", because
-   the throw lands in loadInk's own catch after `ink` is already assigned. */
+/* Last: openLibrary() and loadInk() repaint through renderLibrary/renderActive,
+   which read consts declared above (`$`, `notes`, `current`, `emptyNode`).
+   Calling them any earlier is a TDZ error — and for loadInk one that fails
+   silently into "engine unavailable", because the throw lands in its own catch
+   after `ink` is already assigned. */
+openLibrary();
 loadInk();
 </script>
