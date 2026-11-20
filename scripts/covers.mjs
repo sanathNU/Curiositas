@@ -17,7 +17,7 @@ const P = p => `${f(p[0])},${f(p[1])}`;
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 /** mulberry32: a small seeded PRNG returning floats in [0, 1). */
-function rng(seed) {
+export function rng(seed) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6D2B79F5) | 0;
@@ -175,10 +175,24 @@ function capitals(r, coast) {
   return sites;
 }
 
+/**
+ * A uniform random order of 0..n-1 from exactly n - 1 draws (Fisher-Yates, in Durstenfeld's in-place form;
+ * Knuth, TAOCP vol. 2, sec. 3.4.2, Algorithm P). Sorting with a random comparator would leave the order, and
+ * how many draws it takes, to the engine's sort.
+ */
+function shuffle(r, n) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /** Four tints, no two neighbouring provinces alike: greedy colouring retried in random orders. */
 function fourColour(r, cells) {
   for (let t = 0; t < 300; t++) {
-    const order = cells.map((_, i) => i).sort(() => r() - 0.5), col = new Array(cells.length).fill(-1);
+    const order = shuffle(r, cells.length), col = new Array(cells.length).fill(-1);
     let ok = true;
     for (const i of order) {
       const used = new Set(cells[i].nbrs.map(j => col[j]));
@@ -268,20 +282,22 @@ const colX = c => DUMP.x0 + c * (DUMP.cw + DUMP.gap) + (c >= 8 ? DUMP.ggap : 0);
 const rowY = k => DUMP.y0 + k * (DUMP.ch + DUMP.gap);
 
 /**
- * A plausible file: a header, then pen-point records of three little-endian float32s (12 bytes).
- * Their exponent bytes barely change, so the records show up as a repeating diagonal weave.
+ * A plausible file: a header, then pen-point records of three little-endian float32s (12 bytes): x and y
+ * near 1,000, then a pen pressure in [0.25, 0.95). Every float's top byte falls in column 3, 7, 11 or 15,
+ * so those columns run dark (0x44 for x and y). The pressure's top byte (0x3E or 0x3F) steps four columns
+ * left on each row, because 16 is 4 mod 12: a diagonal weave through the dark columns that gives away the
+ * record length. The draws come in the same order as before the pressure existed, so the stroke is unchanged.
  */
-function fakeFile(r) {
-  const bytes = [];
+export function fakeFile(r) {
+  const bytes = [], f32 = new DataView(new ArrayBuffer(4));
   for (let k = 0; k < DUMP.rows * 16; k++) {
-    const row = Math.floor(k / 16);
+    const row = Math.floor(k / 16), inRec = (k - 64) % 12;
     if (row < 3) bytes.push(r() < 0.3 ? 0 : Math.floor(r() * 256));
     else if (row === 3) bytes.push(r() < 0.6 ? 0 : Math.floor(r() * 256));
     else if (row >= DUMP.rows - 1) bytes.push(0);
-    else {
-      const inRec = ((k - 64) % 12) % 4;
-      bytes.push(inRec === 3 ? 0x44 : inRec === 2 ? 0x60 + Math.floor(r() * 64) : Math.floor(r() * 256));
-    }
+    else if (inRec === 10) { f32.setFloat32(0, 0.25 + 0.7 * r(), true); bytes.push(f32.getUint8(2)); }
+    else if (inRec === 11) bytes.push(f32.getUint8(3));
+    else bytes.push(inRec % 4 === 3 ? 0x44 : inRec % 4 === 2 ? 0x60 + Math.floor(r() * 64) : Math.floor(r() * 256));
   }
   return bytes;
 }
