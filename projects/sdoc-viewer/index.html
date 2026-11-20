@@ -975,11 +975,56 @@ const pageObserver = new IntersectionObserver(entries => {
   }
 }, { rootMargin: '400px 0px' });
 
+/* Engine draws InkPen ~4–5× thinner than Samsung Notes. Width fitted to a Samsung
+   screenshot of a real note: median ≈ 1.1× pen size, p90 ≈ 1.45×. */
+const INK_A = 0.16, INK_B = 3.14, INK_MIN = 0.15, INK_MAX = 2;
+
+const LINE_RE = /<line\b(?=[^>]*\bx1="([-\d.]+)")(?=[^>]*\by1="([-\d.]+)")[^>]*?stroke-width="([\d.]+)"/g;
+
+// Strokes drawn as one <line> per segment start at their first point; others
+// (e.g. Marker4, a filled <path>) have no lines and are skipped.
+function inkLineWidths(svg, objects){
+  const starts = [...svg.matchAll(LINE_RE)].map(m => [+m[1], +m[2]]);
+  const widths = new Array(starts.length).fill(null);
+  let li = 0;
+  for(const o of objects){
+    const st = o.content?.Stroke;
+    if(!st || li >= starts.length) continue;
+    const p0 = st.points[0];
+    if(Math.abs(starts[li][0] - p0.x) > 0.011 || Math.abs(starts[li][1] - p0.y) > 0.011) continue;
+    const n = Math.max(st.points.length - 1, 1);
+    if(/InkPen/.test(st.rendering?.pen_name || '')){
+      const size = +st.rendering.style.pen_size;
+      const pr = st.pressures;
+      for(let i = 0; i < n; i++){
+        const p = ((pr[i] ?? 0) + (pr[i + 1] ?? pr[i] ?? 0)) / 2;
+        widths[li + i] = size * Math.min(INK_MAX, Math.max(INK_MIN, INK_A + INK_B * p));
+      }
+    }
+    li += n;
+  }
+  return li === starts.length ? widths : null;
+}
+
+function thickenInk(svg, objects){
+  const widths = inkLineWidths(svg, objects);
+  if(!widths){
+    console.warn('[ink] strokes and engine lines did not line up; keeping engine widths');
+    return svg;
+  }
+  let k = 0;
+  return svg.replace(LINE_RE, (m, _x, _y, w) => {
+    const nw = widths[k++];
+    return nw == null ? m : m.slice(0, m.length - w.length - 1) + nw.toFixed(2) + '"';
+  });
+}
+
 function renderPageInto(img){
   const note = img._note;
   if(!note?.session) return;
   try{
-    const svg = note.session.render_svg(img._pageIndex, colorMode());
+    const raw = note.session.render_svg(img._pageIndex, colorMode());
+    const svg = thickenInk(raw, note.layout?.pages?.[img._pageIndex]?.page?.objects || []);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     pageUrls.push(url);
     img.src = url;
