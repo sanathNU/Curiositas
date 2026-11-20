@@ -451,6 +451,7 @@
     <div class="toolrow" id="pageTools">
       <span id="pageInfo">—</span>
       <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="savePdf" title="Download every page as one PDF">Download PDF</button>
       <div class="zoom">
         <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
         <span id="zoomVal">100%</span>
@@ -1092,6 +1093,102 @@ function downloadBlob(blob, filename){
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+/* ---------------------------------------------------------------
+   Save the note as PDF
+   Built from the same corrected SVGs the viewer shows (the engine's own PDF
+   keeps its thin InkPen widths): every page rasterized at PNG_SCALE in light
+   mode and embedded as a JPEG, on A4-wide pages with the note's aspect.
+----------------------------------------------------------------*/
+const PDF_PAGE_WIDTH_PT = 595.28;
+const PDF_JPEG_QUALITY = 0.9;
+
+async function pageJpeg(note, i){
+  const objects = note.layout?.pages?.[i]?.page?.objects || [];
+  const svg = thickenInk(note.session.render_svg(i, 'light'), objects);
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try{
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const w = (img.naturalWidth || 1600) * PNG_SCALE;
+    const h = (img.naturalHeight || 2262) * PNG_SCALE;
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', PDF_JPEG_QUALITY));
+    if(!blob) throw new Error('canvas produced no image');
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), w, h };
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Minimal PDF 1.4: per page one page object, one content stream, one JPEG.
+function jpegsToPdf(pages){
+  const enc = new TextEncoder();
+  const chunks = [], offsets = [];
+  let size = 0;
+  const push = part => {
+    const b = typeof part === 'string' ? enc.encode(part) : part;
+    chunks.push(b); size += b.length;
+  };
+  const obj = (n, body) => { offsets[n] = size; push(`${n} 0 obj\n`); body(); push('\nendobj\n'); };
+  const pageIds = pages.map((_, k) => 3 + k * 3);
+
+  push('%PDF-1.4\n%âãÏÓ\n');
+  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => push(`<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`));
+  pages.forEach((p, k) => {
+    const id = pageIds[k];
+    const wPt = PDF_PAGE_WIDTH_PT;
+    const hPt = +(PDF_PAGE_WIDTH_PT * p.h / p.w).toFixed(2);
+    const content = `q ${wPt} 0 0 ${hPt} 0 0 cm /Im0 Do Q`;
+    obj(id, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wPt} ${hPt}] ` +
+      `/Resources << /XObject << /Im0 ${id + 2} 0 R >> >> /Contents ${id + 1} 0 R >>`));
+    obj(id + 1, () => push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
+    obj(id + 2, () => {
+      push(`<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB ` +
+        `/BitsPerComponent 8 /Filter /DCTDecode /Length ${p.bytes.length} >>\nstream\n`);
+      push(p.bytes);
+      push('\nendstream');
+    });
+  });
+
+  const count = 3 + pages.length * 3;
+  const xref = size;
+  push(`xref\n0 ${count}\n0000000000 65535 f \n`);
+  for(let n = 1; n < count; n++) push(`${String(offsets[n]).padStart(10, '0')} 00000 n \n`);
+  push(`trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+async function savePdf(){
+  const note = current;
+  if(!note?.session) return;
+  const btn = $('savePdf');
+  const n = note.session.page_count;
+  btn.disabled = true;
+  try{
+    const pages = [];
+    for(let i = 0; i < n; i++){
+      btn.textContent = `Page ${i + 1} of ${n}…`;
+      await new Promise(r => requestAnimationFrame(() => r()));  // let the label paint
+      pages.push(await pageJpeg(note, i));
+    }
+    const base = (note.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
+    downloadBlob(jpegsToPdf(pages), `${base}.pdf`);
+  }catch(err){
+    console.error('[pdf] export failed', err);
+    alert(`Couldn't save the PDF:\n\n${err && err.message || err}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Download PDF';
+  }
+}
+
 /* Zoom is just the rendered width; the SVG scales without re-rendering. */
 function applyZoom(wrap){
   const target = wrap || $('view').querySelector('.pages');
@@ -1276,6 +1373,7 @@ function setZoom(z){
 $('zoomIn').onclick  = () => setZoom(Math.min(3, zoom + 0.15));
 $('zoomOut').onclick = () => setZoom(Math.max(0.4, zoom - 0.15));
 $('zoomReset').onclick = () => setZoom(1);
+$('savePdf').onclick = savePdf;
 
 /* ---------------------------------------------------------------
    Sidebar drawer (narrow screens)
