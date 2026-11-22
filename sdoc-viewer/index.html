@@ -1,4 +1,4 @@
-<script type="module" crossorigin src="./assets/index-CC-iWnq_.js"></script>
+<script type="module" crossorigin src="./assets/index-C6pY9_Ix.js"></script>
 <!--
   unsdocx — a client-side viewer for Samsung Notes files.
   Zip container browsing + media + metadata works with JSZip alone.
@@ -118,21 +118,67 @@
   /* ---- workspace ---- */
   .work{flex:1; display:flex; min-height:0}
   .side{
-    width:266px; flex:0 0 auto; border-right:1px solid var(--line);
+    width:284px; flex:0 0 auto; border-right:1px solid var(--line);
     background:var(--paper-2); display:flex; flex-direction:column; min-height:0;
   }
   .side h3{
-    margin:0; padding:16px 18px 8px;
-    font-size:14px; color:var(--muted); font-weight:600;
+    margin:0; padding:14px 18px 6px;
+    font-size:13px; color:var(--muted); font-weight:600;
   }
-  .notes{overflow:auto; padding:0 10px 14px}
-  .note-item{padding:9px 11px; border-radius:var(--radius); cursor:pointer; margin-bottom:2px}
+  .lib{display:flex; flex-direction:column; gap:1px; padding:10px 10px 0}
+  .lib-row{
+    appearance:none; border:none; background:none; color:var(--text); cursor:pointer;
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    padding:7px 10px; border-radius:var(--radius); font:inherit; font-size:15px;
+  }
+  .lib-row:hover{background:var(--fold)}
+  .lib-row.on{background:var(--fold); font-weight:600}
+  .lib-row .nm{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .lib-row .count{margin-left:auto; font-size:13px; font-weight:400; color:var(--faint); font-variant-numeric:tabular-nums}
+  .lib-row .x{
+    display:none; appearance:none; border:none; background:none; cursor:pointer;
+    color:var(--muted); width:22px; height:22px; border-radius:6px; font-size:16px; line-height:1;
+  }
+  .lib-row:hover .x, .lib-row .x:focus-visible{display:inline-block}
+  .lib-row:hover .count{display:none}
+  .lib-row .x:hover{color:var(--danger); background:var(--paper-2)}
+  .lib-head{display:flex; align-items:center; justify-content:space-between; padding-right:12px}
+  .lib-head .icon-btn{width:28px; height:28px; font-size:19px}
+  .collections{display:flex; flex-direction:column; gap:1px; padding:0 10px; max-height:30vh; overflow:auto}
+  .notes{flex:1; overflow:auto; padding:0 10px 14px; min-height:0}
+  .note-item{position:relative; padding:9px 66px 9px 11px; border-radius:var(--radius); cursor:pointer; margin-bottom:2px}
   .note-item:hover{background:var(--fold)}
   .note-item.active{background:var(--accent); color:var(--on-accent)}
   .note-item.active .m{color:inherit; opacity:.8}
   .note-item .n{font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .note-item .m{font-size:13px; color:var(--faint); margin-top:2px}
-  .side .empty-hint{padding:10px 18px; color:var(--muted); font-size:15px}
+  .note-item .acts{position:absolute; right:6px; top:50%; transform:translateY(-50%); display:flex; gap:2px}
+  .note-item .acts button{
+    appearance:none; border:none; background:none; color:inherit; cursor:pointer;
+    width:28px; height:28px; border-radius:6px; font-size:16px; line-height:1; opacity:.5;
+  }
+  .note-item .acts button:hover, .note-item .acts button:focus-visible{opacity:1; background:color-mix(in srgb, currentColor 12%, transparent)}
+  .note-item .star[aria-pressed="true"]{opacity:1; color:#d9a400}
+  .note-item.active .star[aria-pressed="true"]{color:inherit}
+  .side .empty-hint{padding:6px 10px; color:var(--muted); font-size:14px}
+  .lib-foot{padding:10px 18px 14px; font-size:13px; color:var(--faint); border-top:1px solid var(--line)}
+
+  /* ---- note actions menu ---- */
+  .menu{
+    position:fixed; z-index:60; min-width:210px; max-width:280px; padding:5px;
+    background:var(--paper); color:var(--text); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 14px 36px -14px var(--shadow);
+  }
+  .menu .menu-label{padding:6px 10px 4px; font-size:13px; color:var(--muted); font-weight:600}
+  .menu button{
+    appearance:none; border:none; background:none; color:inherit; cursor:pointer; font:inherit;
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    padding:7px 10px; border-radius:6px; font-size:15px;
+  }
+  .menu button:hover, .menu button:focus-visible{background:var(--fold); outline:none}
+  .menu .tick{width:14px; flex:0 0 auto; color:var(--accent)}
+  .menu .danger{color:var(--danger)}
+  .menu hr{border:none; border-top:1px solid var(--line-soft); margin:4px 0}
 
   .main{flex:1; display:flex; flex-direction:column; min-width:0; background:var(--paper)}
   .tabs{
@@ -184,6 +230,34 @@
   .save-png:hover{background:var(--fold)}
   .save-png[disabled]{cursor:default; opacity:1; color:var(--faint)}
   @media (hover:none){ .save-png{opacity:1} }
+
+  /* Your own ink sits in an SVG over the page, in the page's own units. */
+  .page-surface{position:relative}
+  .ink-layer{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible}
+  body.annotating .ink-layer{pointer-events:auto; cursor:crosshair; touch-action:none}
+  /* Once a stylus has been seen, fingers scroll and only the pen draws. */
+  body.annotating.has-pen .ink-layer{touch-action:pan-x pan-y pinch-zoom}
+  body.annotating.erasing .ink-layer{cursor:cell}
+
+  .btn.quiet{background:var(--paper-2); color:var(--accent)}
+  .btn.quiet:hover{filter:none; background:var(--fold)}
+  .btn.quiet[aria-pressed="true"]{background:var(--accent); color:var(--on-accent)}
+  .inkbar{background:var(--paper); flex-wrap:wrap}
+  .seg{display:flex; gap:2px; background:var(--paper-2); border-radius:980px; padding:2px}
+  .seg button{
+    appearance:none; border:none; background:none; color:var(--text); cursor:pointer;
+    font-size:14px; padding:5px 12px; border-radius:980px;
+  }
+  .seg button.on{background:var(--paper); box-shadow:0 1px 2px var(--shadow); font-weight:600}
+  .swatches{display:flex; gap:6px; align-items:center}
+  .swatch{
+    appearance:none; width:22px; height:22px; border-radius:50%; cursor:pointer; padding:0;
+    border:2px solid var(--paper); box-shadow:0 0 0 1px var(--line);
+  }
+  .swatch.on{box-shadow:0 0 0 2px var(--accent)}
+  .inkbar .hint{color:var(--faint); font-size:13px}
+  .toolrow .btn{white-space:nowrap; flex:0 0 auto}
+  @media (max-width:1100px){ .inkbar .hint{display:none} }
 
   img.page{
     display:block; width:100%; height:auto; border-radius:10px; background:var(--paper-2);
@@ -349,6 +423,12 @@
   body[data-state="empty"] #openBtn,
   body[data-state="empty"] .sidebar-toggle{display:none}
   body[data-state="empty"] .topbar{border-bottom-color:transparent}
+  /* library has notes but none is open: sidebar stays, the hero fills the main area */
+  body[data-state="library"] .tabs,
+  body[data-state="library"] .toolrow,
+  body[data-state="library"] .status,
+  body[data-state="library"] .brand,
+  body[data-state="library"] #engineChip{display:none}
 
   /* ---- sidebar toggle (narrow screens only) ---- */
   .sidebar-toggle{display:none}
@@ -387,7 +467,10 @@
     .tabs::-webkit-scrollbar{display:none}
     .tab{padding:10px 10px; font-size:13px; white-space:nowrap; flex:0 0 auto}
 
-    .toolrow{padding:8px 12px; gap:8px; font-size:13px}
+    .toolrow{padding:8px 12px; gap:8px; font-size:13px; flex-wrap:wrap}
+    #pageInfo{flex:1 0 100%}
+    #pageTools .spacer{display:none}
+    .toolrow .btn{padding:6px 13px; font-size:14px}
     .pages{padding:14px 10px; gap:20px}
     .page-wrap{max-width:none !important}   /* zoom sets this; ignore it here */
     .save-png{opacity:1}                    /* no hover to reveal it on a phone */
@@ -435,10 +518,19 @@
 <div class="work">
   <div class="side-scrim" id="sideScrim" aria-hidden="true"></div>
   <aside class="side">
-    <h3>Your files</h3>
-    <div class="notes" id="noteList">
-      <div class="empty-hint">No files yet. Open a <code>.sdocx</code> to begin.</div>
+    <nav class="lib" id="libNav" aria-label="Library">
+      <button class="lib-row on" data-view="all"><span class="nm">All notes</span><span class="count" id="cntAll">0</span></button>
+      <button class="lib-row" data-view="recent"><span class="nm">Recent</span><span class="count" id="cntRecent">0</span></button>
+      <button class="lib-row" data-view="favorites"><span class="nm">Favorites</span><span class="count" id="cntFav">0</span></button>
+    </nav>
+    <div class="lib-head">
+      <h3>Collections</h3>
+      <button class="icon-btn" id="newCollection" title="New collection" aria-label="New collection">+</button>
     </div>
+    <div class="collections" id="collectionList"></div>
+    <h3 id="listTitle">All notes</h3>
+    <div class="notes" id="noteList"></div>
+    <div class="lib-foot" id="storageInfo"></div>
   </aside>
 
   <section class="main">
@@ -452,6 +544,9 @@
     <div class="toolrow" id="pageTools">
       <span id="pageInfo">—</span>
       <div class="spacer" style="flex:1"></div>
+      <button class="btn quiet" id="annotateBtn" aria-pressed="false" title="Write on the pages (your file isn't changed)">Annotate</button>
+      <button class="btn" id="savePdf" title="Download every page as one PDF">Download PDF</button>
+      <button class="btn" id="saveXopp" title="Download an editable copy for Xournal++">Xournal++</button>
       <div class="zoom">
         <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
         <span id="zoomVal">100%</span>
@@ -459,6 +554,19 @@
         <button id="zoomReset" title="Reset zoom to 100%" aria-label="Reset zoom"
                 style="width:auto;padding:0 8px;font-size:13px">Reset</button>
       </div>
+    </div>
+
+    <div class="toolrow inkbar hidden" id="inkBar" role="toolbar" aria-label="Annotation tools">
+      <div class="seg" id="toolSeg">
+        <button data-tool="pen" class="on" title="Pen (P)">Pen</button>
+        <button data-tool="highlighter" title="Highlighter (H)">Highlighter</button>
+        <button data-tool="eraser" title="Eraser (E): removes a whole stroke of yours">Eraser</button>
+      </div>
+      <div class="swatches" id="swatches"></div>
+      <span class="hint" id="inkHint">Your ink is kept in this browser, beside the note.</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn quiet" id="undoInk" title="Undo (⌘Z / Ctrl+Z)" disabled>Undo</button>
+      <button class="btn" id="doneInk" title="Stop annotating (Esc)">Done</button>
     </div>
 
     <div class="view" id="view">
@@ -531,6 +639,21 @@
       tracking, no external requests — which is also what makes it safe to host as a
       plain static page.</p>
 
+    <h2>Your library</h2>
+    <p>Notes you open are kept in this browser, so they're still here next time. Find them
+      under <b>All notes</b>, <b>Recent</b> and <b>Favorites</b> (star a note), and sort them
+      into <b>collections</b> from each note's ⋯ menu. Removing a note from the library
+      deletes this browser's copy only; your original file isn't touched.</p>
+
+    <h2>Writing on your notes</h2>
+    <p>Hit <b>Annotate</b> above the pages to write on them with a pen (pressure-sensitive with a
+      stylus, at the same weight as Samsung's ink) or a highlighter, in a few colors. The eraser
+      removes whole strokes of yours; <b>Undo</b> (⌘Z / Ctrl+Z) steps back. Shortcuts: <b>P</b>,
+      <b>H</b>, <b>E</b>, and <b>Esc</b> to finish.</p>
+    <p class="small">Your ink is kept in this browser beside the note; the <code>.sdocx</code> itself is never
+      changed, and the note's own strokes can't be erased. Your ink is part of every download below.
+      With a stylus, a finger scrolls instead of drawing.</p>
+
     <h2>What it shows</h2>
     <ul>
       <li><b>Pages</b> — the full page: ink, imported slides and photos together.</li>
@@ -538,19 +661,26 @@
       <li><b>Structure</b> — the Zip entries inside the file; click a <code>.note</code> or <code>.dat</code> to read it as text or hex.</li>
       <li><b>Raw</b> — the parsed document, the engine's diagnostics, and the Zip manifest, as JSON.</li>
     </ul>
-    <p>To get a page out, hover it and choose <b>Save PNG</b>. Pages are rasterized at
-      2× their size (3200 × 4524) on an opaque background, so they stay sharp when
-      printed. On a phone the button is always visible.</p>
+
+    <h2>Getting it out</h2>
+    <ul>
+      <li><b>Download PDF</b> — every page of the note in one PDF, from the button above
+        the pages. Always in light mode, on A4-wide pages.</li>
+      <li><b>Xournal++</b> — an editable copy for <a href="https://xournalpp.github.io/" target="_blank" rel="noopener">Xournal++</a>,
+        the free handwriting app for Linux, macOS and Windows. Your ink comes over as real strokes
+        you can keep writing on, erase or recolor; images come along too. Typed text isn't included yet.</li>
+      <li><b>Save PNG</b> — a single page; hover it and choose Save PNG. On a phone the
+        button is always visible.</li>
+    </ul>
+    <p class="small">PDF and PNG are rasterized at 2× the page size (3200 px wide) on an opaque
+      background, so they stay sharp when printed. Handwriting is kept as drawn, but typed
+      text in the PDF can't be selected or searched.</p>
 
     <h2>How it works</h2>
     <p>An <code>.sdocx</code> is a Zip container, opened here with JSZip. Pages are
       decoded and drawn by <a href="https://github.com/twangodev/sdocx" target="_blank" rel="noopener">@twango/sdocx</a>,
       a reverse-engineered parser written in Rust and compiled to WebAssembly. It
       renders each page to SVG, and the viewer shows that SVG as an image.</p>
-    <p>An earlier version drew the strokes onto a canvas by hand. It broke on anything
-      built from imported PDFs or slides: those pages came out blank, and one garbage
-      pen width in the file (<code>4.05e+31</code>) turned into a page-filling black
-      rectangle. Handing rendering to the engine fixed both.</p>
     <p class="small">Each page SVG is 5–14 MB, so pages render as you scroll rather than
       all at once. The color mode is baked into the SVG, so switching theme re-renders
       the pages you can see.</p>
