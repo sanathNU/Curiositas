@@ -36,18 +36,27 @@ fixture at `test/Testing doc.sdocx`, which Vite bundles into the build through a
 | **Structure** | The internal Zip entry tree; click a `.note`/`.dat` to inspect text or hex |
 | **Raw** | The parsed document object, engine diagnostics, and the Zip manifest as JSON |
 
-### Getting a page out
+### Getting it out
 
-Hover a page and hit **Save PNG**. Pages are rasterized at 2× their intrinsic
-size (1600×2262 → 3200×4524) on an opaque background, so they stay sharp when
-printed or zoomed and don't come out transparent.
+- **Download PDF**: every page in one PDF, light mode, A4-wide pages.
+- **Xournal++**: an editable `.xopp` for [Xournal++](https://xournalpp.github.io/),
+  the free handwriting app for Linux, macOS and Windows. Ink comes over as real
+  strokes, with the same pressure widths the viewer draws, so you can keep
+  writing, erase or recolor on a laptop. Placed images come along as images.
+  The engine doesn't draw typed text yet, so text boxes are left out.
+- **Save PNG**: hover a page. Pages are rasterized at 2× their intrinsic size
+  (1600×2262 → 3200×4524) on an opaque background, so they stay sharp when
+  printed or zoomed and don't come out transparent.
+
+The `.xopp` writer lives in `src/xopp.js`; `npm test` checks it against the
+sample fixture.
 
 Works on phones too — the sidebar becomes a drawer and the save button is
 always visible where there's no hover.
 
 ## How pages are rendered
 
-Pages go through `DocumentSession.render_svg()` from `@twango/sdocx` 0.4.0 —
+Pages go through `DocumentSession.render_svg()` from `@twango/sdocx` 1.2.0 —
 the parser rasterizes each page to SVG in Rust, and the viewer shows the result
 as an `<img>`. Rendering lives in the engine rather than in this repo on
 purpose.

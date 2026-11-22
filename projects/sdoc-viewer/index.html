@@ -513,6 +513,7 @@
       <span id="pageInfo">—</span>
       <div class="spacer" style="flex:1"></div>
       <button class="btn" id="savePdf" title="Download every page as one PDF">Download PDF</button>
+      <button class="btn" id="saveXopp" title="Download an editable copy for Xournal++">Xournal++</button>
       <div class="zoom">
         <button id="zoomOut" title="Zoom out" aria-label="Zoom out">−</button>
         <span id="zoomVal">100%</span>
@@ -610,10 +611,13 @@
     <ul>
       <li><b>Download PDF</b> — every page of the note in one PDF, from the button above
         the pages. Always in light mode, on A4-wide pages.</li>
+      <li><b>Xournal++</b> — an editable copy for <a href="https://xournalpp.github.io/" target="_blank" rel="noopener">Xournal++</a>,
+        the free handwriting app for Linux, macOS and Windows. Your ink comes over as real strokes
+        you can keep writing on, erase or recolor; images come along too. Typed text isn't included yet.</li>
       <li><b>Save PNG</b> — a single page; hover it and choose Save PNG. On a phone the
         button is always visible.</li>
     </ul>
-    <p class="small">Both are rasterized at 2× the page size (3200 px wide) on an opaque
+    <p class="small">PDF and PNG are rasterized at 2× the page size (3200 px wide) on an opaque
       background, so they stay sharp when printed. Handwriting is kept as drawn, but typed
       text in the PDF can't be selected or searched.</p>
 
@@ -648,6 +652,8 @@ import JSZip from 'jszip';
 import initSdocx, * as sdocx from '@twango/sdocx';
 import sdocxWasmUrl from '@twango/sdocx/sdocx_bg.wasm?url';
 import sampleUrl from './test/Testing doc.sdocx?url';
+import { isInkPen, inkSegmentWidths } from './src/ink.js';
+import { XOPP_PAGE_WIDTH_PT, strokeToXopp, xoppXml, gzipText } from './src/xopp.js';
 
 /* ---------------------------------------------------------------
    Ink engine loader.
@@ -1292,10 +1298,8 @@ const pageObserver = new IntersectionObserver(entries => {
   }
 }, { rootMargin: '400px 0px' });
 
-/* Engine draws InkPen ~4–5× thinner than Samsung Notes. Width fitted to a Samsung
-   screenshot of a real note: median ≈ 1.1× pen size, p90 ≈ 1.45×. */
-const INK_A = 0.16, INK_B = 3.14, INK_MIN = 0.15, INK_MAX = 2;
-
+/* Engine draws InkPen ~4–5× thinner than Samsung Notes; src/ink.js holds the
+   fitted width model, shared with the exporters. */
 const LINE_RE = /<line\b(?=[^>]*\bx1="([-\d.]+)")(?=[^>]*\by1="([-\d.]+)")[^>]*?stroke-width="([\d.]+)"/g;
 
 // Strokes drawn as one <line> per segment start at their first point; others
@@ -1310,13 +1314,8 @@ function inkLineWidths(svg, objects){
     const p0 = st.points[0];
     if(Math.abs(starts[li][0] - p0.x) > 0.011 || Math.abs(starts[li][1] - p0.y) > 0.011) continue;
     const n = Math.max(st.points.length - 1, 1);
-    if(/InkPen/.test(st.rendering?.pen_name || '')){
-      const size = +st.rendering.style.pen_size;
-      const pr = st.pressures;
-      for(let i = 0; i < n; i++){
-        const p = ((pr[i] ?? 0) + (pr[i + 1] ?? pr[i] ?? 0)) / 2;
-        widths[li + i] = size * Math.min(INK_MAX, Math.max(INK_MIN, INK_A + INK_B * p));
-      }
+    if(isInkPen(st.rendering?.pen_name)){
+      inkSegmentWidths(st, +st.rendering.style.pen_size).forEach((w, i) => { widths[li + i] = w; });
     }
     li += n;
   }
@@ -1502,6 +1501,101 @@ async function savePdf(){
   }finally{
     btn.disabled = false;
     btn.textContent = 'Download PDF';
+  }
+}
+
+/* ---------------------------------------------------------------
+   Save the note for Xournal++ (.xopp)
+   Ink goes over as real, editable strokes (with the same corrected InkPen
+   widths). The engine draws a placed image either bare or inside a rotated,
+   cropping <svg> viewport, so each one is rasterized from the page SVG as it
+   appears.
+   The engine doesn't draw typed text, so there is none to carry over.
+----------------------------------------------------------------*/
+const XOPP_IMAGE_SCALE = 2;
+const XOPP_IMAGE_MAX_PX = 4096;
+// Alternation scans left to right, so a cropped group swallows its own <image>.
+const PLACED_IMAGE_RE = /<g transform="rotate\(([-\d.]+) ([-\d.]+) ([-\d.]+)\)"><svg\b([^>]*)>[\s\S]*?<\/svg><\/g>|<image\b([^>]*)\/>/g;
+
+function svgAttr(attrs, name){
+  const m = attrs.match(new RegExp(`\\b${name}="([-\\d.]+)"`));
+  return m ? +m[1] : 0;
+}
+
+// Axis-aligned box of a w×h rect at (x, y) rotated `deg` about (cx, cy).
+function rotatedBox(x, y, w, h, deg, cx, cy){
+  const t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+  const xs = [], ys = [];
+  for(const [px, py] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]){
+    xs.push(cx + (px - cx) * c - (py - cy) * s);
+    ys.push(cy + (px - cx) * s + (py - cy) * c);
+  }
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  return { x: x0, y: y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 };
+}
+
+async function svgToPngBase64(svg, w, h){
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  try{
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    return cv.toDataURL('image/png').split(',')[1];
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Placed images on one page, in pt, as base64 PNG.
+async function xoppPageImages(svg, k){
+  const out = [];
+  for(const m of svg.matchAll(PLACED_IMAGE_RE)){
+    const [group, deg = 0, cx = 0, cy = 0, cropAttrs, bareAttrs] = m;
+    const attrs = cropAttrs ?? bareAttrs;
+    const b = rotatedBox(svgAttr(attrs, 'x'), svgAttr(attrs, 'y'), svgAttr(attrs, 'width'), svgAttr(attrs, 'height'), +deg, +cx, +cy);
+    if(b.w < 1 || b.h < 1) continue;
+    const scale = Math.min(XOPP_IMAGE_SCALE, XOPP_IMAGE_MAX_PX / Math.max(b.w, b.h));
+    const pw = Math.round(b.w * scale), ph = Math.round(b.h * scale);
+    const crop = `<svg xmlns="http://www.w3.org/2000/svg" width="${pw}" height="${ph}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">${group}</svg>`;
+    out.push({ x: b.x * k, y: b.y * k, w: b.w * k, h: b.h * k, png: await svgToPngBase64(crop, pw, ph) });
+  }
+  return out;
+}
+
+async function xoppPage(note, i){
+  const page = note.layout?.pages?.[i]?.page || {};
+  const width = page.width || 1600, height = page.height || 2262;
+  const k = XOPP_PAGE_WIDTH_PT / width;
+  const svg = note.session.render_svg(i, 'light');
+  const bg = svg.match(/<rect fill="#([0-9a-f]{6})"/i)?.[1] || 'ffffff';
+  const strokes = (page.objects || []).map(o => strokeToXopp(o.content?.Stroke, k)).filter(Boolean);
+  return { w: width * k, h: height * k, background: `#${bg.toLowerCase()}ff`, images: await xoppPageImages(svg, k), strokes };
+}
+
+async function saveXopp(){
+  const note = current;
+  if(!note?.session) return;
+  const btn = $('saveXopp');
+  const n = note.session.page_count;
+  btn.disabled = true;
+  try{
+    const pages = [];
+    for(let i = 0; i < n; i++){
+      btn.textContent = `Page ${i + 1} of ${n}…`;
+      await nextFrame();
+      pages.push(await xoppPage(note, i));
+    }
+    const base = (note.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
+    downloadBlob(await gzipText(xoppXml(pages)), `${base}.xopp`);
+  }catch(err){
+    console.error('[xopp] export failed', err);
+    alert(`Couldn't save the Xournal++ file:\n\n${err && err.message || err}`);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Xournal++';
   }
 }
 
@@ -1692,6 +1786,7 @@ $('zoomIn').onclick  = () => setZoom(Math.min(3, zoom + 0.15));
 $('zoomOut').onclick = () => setZoom(Math.max(0.4, zoom - 0.15));
 $('zoomReset').onclick = () => setZoom(1);
 $('savePdf').onclick = savePdf;
+$('saveXopp').onclick = saveXopp;
 
 /* ---------------------------------------------------------------
    Sidebar drawer (narrow screens)
