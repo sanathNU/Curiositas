@@ -230,6 +230,34 @@
   .save-png[disabled]{cursor:default; opacity:1; color:var(--faint)}
   @media (hover:none){ .save-png{opacity:1} }
 
+  /* Your own ink sits in an SVG over the page, in the page's own units. */
+  .page-surface{position:relative}
+  .ink-layer{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible}
+  body.annotating .ink-layer{pointer-events:auto; cursor:crosshair; touch-action:none}
+  /* Once a stylus has been seen, fingers scroll and only the pen draws. */
+  body.annotating.has-pen .ink-layer{touch-action:pan-x pan-y pinch-zoom}
+  body.annotating.erasing .ink-layer{cursor:cell}
+
+  .btn.quiet{background:var(--paper-2); color:var(--accent)}
+  .btn.quiet:hover{filter:none; background:var(--fold)}
+  .btn.quiet[aria-pressed="true"]{background:var(--accent); color:var(--on-accent)}
+  .inkbar{background:var(--paper); flex-wrap:wrap}
+  .seg{display:flex; gap:2px; background:var(--paper-2); border-radius:980px; padding:2px}
+  .seg button{
+    appearance:none; border:none; background:none; color:var(--text); cursor:pointer;
+    font-size:14px; padding:5px 12px; border-radius:980px;
+  }
+  .seg button.on{background:var(--paper); box-shadow:0 1px 2px var(--shadow); font-weight:600}
+  .swatches{display:flex; gap:6px; align-items:center}
+  .swatch{
+    appearance:none; width:22px; height:22px; border-radius:50%; cursor:pointer; padding:0;
+    border:2px solid var(--paper); box-shadow:0 0 0 1px var(--line);
+  }
+  .swatch.on{box-shadow:0 0 0 2px var(--accent)}
+  .inkbar .hint{color:var(--faint); font-size:13px}
+  .toolrow .btn{white-space:nowrap; flex:0 0 auto}
+  @media (max-width:1100px){ .inkbar .hint{display:none} }
+
   img.page{
     display:block; width:100%; height:auto; border-radius:10px; background:var(--paper-2);
     box-shadow:0 1px 2px var(--shadow), 0 14px 36px -16px var(--shadow);
@@ -438,7 +466,10 @@
     .tabs::-webkit-scrollbar{display:none}
     .tab{padding:10px 10px; font-size:13px; white-space:nowrap; flex:0 0 auto}
 
-    .toolrow{padding:8px 12px; gap:8px; font-size:13px}
+    .toolrow{padding:8px 12px; gap:8px; font-size:13px; flex-wrap:wrap}
+    #pageInfo{flex:1 0 100%}
+    #pageTools .spacer{display:none}
+    .toolrow .btn{padding:6px 13px; font-size:14px}
     .pages{padding:14px 10px; gap:20px}
     .page-wrap{max-width:none !important}   /* zoom sets this; ignore it here */
     .save-png{opacity:1}                    /* no hover to reveal it on a phone */
@@ -512,6 +543,7 @@
     <div class="toolrow" id="pageTools">
       <span id="pageInfo">—</span>
       <div class="spacer" style="flex:1"></div>
+      <button class="btn quiet" id="annotateBtn" aria-pressed="false" title="Write on the pages (your file isn't changed)">Annotate</button>
       <button class="btn" id="savePdf" title="Download every page as one PDF">Download PDF</button>
       <button class="btn" id="saveXopp" title="Download an editable copy for Xournal++">Xournal++</button>
       <div class="zoom">
@@ -521,6 +553,19 @@
         <button id="zoomReset" title="Reset zoom to 100%" aria-label="Reset zoom"
                 style="width:auto;padding:0 8px;font-size:13px">Reset</button>
       </div>
+    </div>
+
+    <div class="toolrow inkbar hidden" id="inkBar" role="toolbar" aria-label="Annotation tools">
+      <div class="seg" id="toolSeg">
+        <button data-tool="pen" class="on" title="Pen (P)">Pen</button>
+        <button data-tool="highlighter" title="Highlighter (H)">Highlighter</button>
+        <button data-tool="eraser" title="Eraser (E): removes a whole stroke of yours">Eraser</button>
+      </div>
+      <div class="swatches" id="swatches"></div>
+      <span class="hint" id="inkHint">Your ink is kept in this browser, beside the note.</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn quiet" id="undoInk" title="Undo (⌘Z / Ctrl+Z)" disabled>Undo</button>
+      <button class="btn" id="doneInk" title="Stop annotating (Esc)">Done</button>
     </div>
 
     <div class="view" id="view">
@@ -599,6 +644,15 @@
       into <b>collections</b> from each note's ⋯ menu. Removing a note from the library
       deletes this browser's copy only; your original file isn't touched.</p>
 
+    <h2>Writing on your notes</h2>
+    <p>Hit <b>Annotate</b> above the pages to write on them with a pen (pressure-sensitive with a
+      stylus, at the same weight as Samsung's ink) or a highlighter, in a few colors. The eraser
+      removes whole strokes of yours; <b>Undo</b> (⌘Z / Ctrl+Z) steps back. Shortcuts: <b>P</b>,
+      <b>H</b>, <b>E</b>, and <b>Esc</b> to finish.</p>
+    <p class="small">Your ink is kept in this browser beside the note; the <code>.sdocx</code> itself is never
+      changed, and the note's own strokes can't be erased. Your ink is part of every download below.
+      With a stylus, a finger scrolls instead of drawing.</p>
+
     <h2>What it shows</h2>
     <ul>
       <li><b>Pages</b> — the full page: ink, imported slides and photos together.</li>
@@ -654,6 +708,8 @@ import sdocxWasmUrl from '@twango/sdocx/sdocx_bg.wasm?url';
 import sampleUrl from './test/Testing doc.sdocx?url';
 import { isInkPen, inkSegmentWidths } from './src/ink.js';
 import { XOPP_PAGE_WIDTH_PT, strokeToXopp, xoppXml, gzipText } from './src/xopp.js';
+import { PEN_SIZE, HIGHLIGHTER_SIZE, MIN_POINT_GAP, strokeSvg, annotationSvg, withAnnotations,
+         hitsStroke, annotationToXopp } from './src/annotate.js';
 
 /* ---------------------------------------------------------------
    Ink engine loader.
@@ -810,10 +866,12 @@ async function dbDelete(name, id){ if(db) await idbReq(dbStore(name, 'readwrite'
 
 async function openLibrary(){
   try{
-    const req = indexedDB.open('unsdocx', 1);
+    const req = indexedDB.open('unsdocx', 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore('notes', { keyPath: 'id' });
-      req.result.createObjectStore('collections', { keyPath: 'id' });
+      // v1: notes, collections. v2: ink (your annotations, one record per note).
+      for(const name of ['notes', 'collections', 'ink']){
+        if(!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name, { keyPath: 'id' });
+      }
     };
     db = await idbReq(req);
     [library, collections] = await Promise.all([dbAll('notes'), dbAll('collections')]);
@@ -884,6 +942,7 @@ async function openNote(id){
   entry.openedAt = Date.now();
   entry.pages ??= pageCount(note);
   saveEntry(entry);
+  await loadNoteInk(id);
   select(id);
 }
 
@@ -1100,7 +1159,9 @@ async function removeNote(e){
   }
   renderLibrary();
   renderActive();
-  try{ await dbDelete('notes', e.id); }catch(err){ console.error('[library] delete failed', err); }
+  inkStore.delete(e.id);
+  try{ await dbDelete('notes', e.id); await dbDelete('ink', e.id); }
+  catch(err){ console.error('[library] delete failed', err); }
 }
 
 /* ⋯ menu on a note: collections to toggle, then remove */
@@ -1140,6 +1201,7 @@ function openNoteMenu(entry, anchor){
 window.addEventListener('pointerdown', e => { if(openMenuEl && !openMenuEl.contains(e.target)) closeMenu(); }, true);
 
 function select(id){
+  if(current?.id !== id) clearUndo();
   current = notes.find(n => n.id === id) || null;
   setSidebar(false);   // picking a note is the drawer's whole job on mobile
   // late ink parse if the engine arrived after ingest
@@ -1163,6 +1225,7 @@ function renderActive(){
   const pageTools = $('pageTools');
   syncEmptyState();
   pageTools.classList.toggle('hidden', activeTab !== 'pages' || !current);
+  $('inkBar').classList.toggle('hidden', !annotating || activeTab !== 'pages' || !current);
 
   if(activeTab !== 'pages') releasePageUrls();  // don't hold page blobs off-tab
 
@@ -1261,11 +1324,14 @@ function renderPages(view){
     const img = document.createElement('img');
     img.className = 'page';
     img.alt = `page ${i+1}`;
-    label.querySelector('.save-png').onclick = () => savePagePng(img, i);
+    label.querySelector('.save-png').onclick = e => savePagePng(e.currentTarget, i);
     // Reserve the right box before the SVG loads so the scroll height is
     // stable and the lazy observer doesn't thrash.
     if(page.width && page.height) img.style.aspectRatio = `${page.width} / ${page.height}`;
-    pw.appendChild(label); pw.appendChild(img);
+    const surface = document.createElement('div');
+    surface.className = 'page-surface';
+    surface.append(img, inkLayer(i, page.width || 1600, page.height || 2262));
+    pw.appendChild(label); pw.appendChild(surface);
     wrap.appendChild(pw);
     pageObserver.observe(img);
     img._pageIndex = i;
@@ -1344,6 +1410,8 @@ function renderPageInto(img){
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
     pageUrls.push(url);
     img.src = url;
+    const layer = img.parentElement?.querySelector('.ink-layer');
+    if(layer && layer._tone !== pageTone(svg)){ layer._tone = pageTone(svg); redrawLayer(img._pageIndex, layer); }
   }catch(err){
     console.error('[ink] render_svg failed on page', img._pageIndex, err);
     img.replaceWith(Object.assign(document.createElement('div'), {
@@ -1354,24 +1422,212 @@ function renderPageInto(img){
 }
 
 /* ---------------------------------------------------------------
+   Annotations: your own ink over the pages (src/annotate.js has the model).
+   One IndexedDB record per note: { id, pages: { [pageIndex]: stroke[] } }.
+   The .sdocx itself is never touched.
+----------------------------------------------------------------*/
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ERASER_RADIUS = 8;            // page units
+const NO_PRESSURE = 0.3;            // mouse/finger: Samsung's median writing pressure
+const PEN_COLORS = ['#1a1a1a', '#002fd9', '#d12a2a', '#1d8a3a'];
+const HIGHLIGHT_COLORS = ['#ffd400', '#7ee36a', '#ff7ad9', '#5cc8ff'];
+
+const inkStore = new Map();          // note id -> record
+let annotating = false;
+let tool = 'pen';
+let penColor = PEN_COLORS[0], hiColor = HIGHLIGHT_COLORS[0];
+let undoStack = [];                  // { page, add?: stroke, removed?: [{ stroke, index }] }
+let live = null;                     // the stroke or erase in progress
+
+async function loadNoteInk(id){
+  if(inkStore.has(id)) return inkStore.get(id);
+  let rec = null;
+  try{ if(db) rec = await idbReq(dbStore('ink', 'readonly').get(id)); }
+  catch(e){ console.warn('[ink] could not read annotations', e); }
+  rec ??= { id, pages: {} };
+  inkStore.set(id, rec);
+  return rec;
+}
+function pageInk(note, i){ return inkStore.get(note?.id)?.pages[i] || []; }
+
+let inkSaveTimer = null;
+function saveInk(rec){
+  clearTimeout(inkSaveTimer);
+  inkSaveTimer = setTimeout(() => dbPut('ink', rec).catch(e => console.error('[ink] save failed', e)), 300);
+}
+
+/* The engine may keep a note's paper light even in dark mode, so the ink tone
+   follows the page background it actually drew, not the app theme. */
+function pageTone(svg){
+  const hex = svg.match(/<rect fill="#([0-9a-f]{6})"/i)?.[1];
+  if(!hex) return 'light';
+  const n = parseInt(hex, 16);
+  const lum = (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255;
+  return lum < 0.5 ? 'dark' : 'light';
+}
+
+function inkLayer(i, w, h){
+  const layer = document.createElementNS(SVG_NS, 'svg');
+  layer.setAttribute('class', 'ink-layer');
+  layer.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  layer.setAttribute('preserveAspectRatio', 'none');
+  layer._pageIndex = i;
+  layer._w = w;
+  layer._tone = 'light';             // until the page renders and says otherwise
+  layer.innerHTML = annotationSvg(pageInk(current, i), layer._tone);
+  return layer;
+}
+function findLayer(i){ return [...$('view').querySelectorAll('.ink-layer')].find(l => l._pageIndex === i); }
+function redrawLayer(i, layer = findLayer(i)){
+  if(layer) layer.innerHTML = annotationSvg(pageInk(current, i), layer._tone);
+}
+
+function setAnnotating(on){
+  annotating = on;
+  document.body.classList.toggle('annotating', on);
+  $('annotateBtn').setAttribute('aria-pressed', String(on));
+  $('inkBar').classList.toggle('hidden', !on || activeTab !== 'pages' || !current);
+}
+function setTool(t){
+  tool = t;
+  document.body.classList.toggle('erasing', t === 'eraser');
+  for(const b of $('toolSeg').querySelectorAll('button')) b.classList.toggle('on', b.dataset.tool === t);
+  renderSwatches();
+}
+function renderSwatches(){
+  const box = $('swatches');
+  box.innerHTML = '';
+  if(tool === 'eraser') return;
+  const colors = tool === 'highlighter' ? HIGHLIGHT_COLORS : PEN_COLORS;
+  const chosen = tool === 'highlighter' ? hiColor : penColor;
+  for(const c of colors){
+    const b = document.createElement('button');
+    b.className = 'swatch' + (c === chosen ? ' on' : '');
+    b.style.background = c;
+    b.title = b.ariaLabel = `Color ${c}`;
+    b.onclick = () => { if(tool === 'highlighter') hiColor = c; else penColor = c; renderSwatches(); };
+    box.appendChild(b);
+  }
+}
+
+function clearUndo(){ undoStack = []; $('undoInk').disabled = true; }
+function pushUndo(op){ undoStack.push(op); $('undoInk').disabled = false; }
+function undoInk(){
+  const op = undoStack.pop();
+  $('undoInk').disabled = !undoStack.length;
+  if(!op || !current) return;
+  const rec = inkStore.get(current.id);
+  const list = rec.pages[op.page] ||= [];
+  if(op.add){
+    const k = list.indexOf(op.add);
+    if(k >= 0) list.splice(k, 1);
+  }else{
+    for(const { stroke, index } of op.removed) list.splice(index, 0, stroke);
+  }
+  redrawLayer(op.page);
+  saveInk(rec);
+}
+
+function pagePoint(layer, e){
+  const r = layer.getBoundingClientRect();
+  const k = layer._w / r.width;
+  const pressure = e.pointerType === 'pen' && e.pressure > 0 ? e.pressure : NO_PRESSURE;
+  return [(e.clientX - r.left) * k, (e.clientY - r.top) * k, pressure];
+}
+
+function eraseAt(layer, e){
+  const rec = inkStore.get(current.id);
+  const list = rec.pages[layer._pageIndex] || [];
+  const [x, y] = pagePoint(layer, e);
+  let hit = false;
+  for(let k = list.length - 1; k >= 0; k--){
+    if(!hitsStroke(list[k], x, y, ERASER_RADIUS)) continue;
+    live.removed.push({ stroke: list[k], index: k });
+    list.splice(k, 1);
+    hit = true;
+  }
+  if(hit) redrawLayer(layer._pageIndex);
+}
+
+function onInkDown(e){
+  const layer = e.target.closest?.('.ink-layer');
+  if(!annotating || !layer || !current || live) return;
+  if(e.pointerType === 'pen') document.body.classList.add('has-pen');
+  // With a stylus around, a finger or palm scrolls instead of drawing.
+  if(e.pointerType === 'touch' && document.body.classList.contains('has-pen')) return;
+  if(e.button > 0) return;
+  e.preventDefault();
+  try{ layer.setPointerCapture(e.pointerId); }catch{ /* pointer already gone; moves still reach #view */ }
+  if(tool === 'eraser'){
+    live = { layer, pointerId: e.pointerId, removed: [] };
+    eraseAt(layer, e);
+    return;
+  }
+  const hi = tool === 'highlighter';
+  const stroke = { tool: hi ? 'highlighter' : 'pen', color: hi ? hiColor : penColor,
+                   size: hi ? HIGHLIGHTER_SIZE : PEN_SIZE, pts: [pagePoint(layer, e)] };
+  const g = document.createElementNS(SVG_NS, 'g');
+  layer.appendChild(g);
+  live = { layer, pointerId: e.pointerId, stroke, g };
+  g.innerHTML = strokeSvg(stroke, layer._tone);
+}
+
+function onInkMove(e){
+  if(!live || e.pointerId !== live.pointerId) return;
+  if(!live.stroke){ eraseAt(live.layer, e); return; }
+  const pts = live.stroke.pts;
+  const coalesced = e.getCoalescedEvents?.();   // can be empty (synthetic events, some browsers)
+  for(const ce of (coalesced?.length ? coalesced : [e])){
+    const p = pagePoint(live.layer, ce), q = pts[pts.length - 1];
+    if(Math.hypot(p[0] - q[0], p[1] - q[1]) >= MIN_POINT_GAP) pts.push(p);
+  }
+  live.g.innerHTML = strokeSvg(live.stroke, live.layer._tone);
+}
+
+function onInkUp(e){
+  if(!live || e.pointerId !== live.pointerId) return;
+  const { layer, stroke, removed } = live;
+  live = null;
+  const i = layer._pageIndex;
+  const rec = inkStore.get(current.id);
+  if(e.type === 'pointercancel' && stroke){
+    // The browser took the gesture (usually a scroll): drop the stroke, and
+    // if a pen did that, stop letting fingers scroll so the pen can draw.
+    if(e.pointerType === 'pen') document.body.classList.remove('has-pen');
+    redrawLayer(i);
+    return;
+  }
+  if(stroke){
+    (rec.pages[i] ||= []).push(stroke);
+    pushUndo({ page: i, add: stroke });
+    redrawLayer(i);
+  }else if(removed.length){
+    removed.sort((a, b) => a.index - b.index);
+    pushUndo({ page: i, removed });
+  }else return;
+  saveInk(rec);
+}
+
+/* ---------------------------------------------------------------
    Save a page as PNG
 
    Rasterize the page SVG at 2x its intrinsic size (1600x2262 -> 3200x4524),
-   which is enough to stay sharp when printed or zoomed. The <img> may not be
-   rendered yet if the page never scrolled into view, so force it first.
+   which is enough to stay sharp when printed or zoomed. Built from the
+   engine's SVG plus your annotations, so pages that never scrolled into
+   view save the same as ones that did.
 ----------------------------------------------------------------*/
 const PNG_SCALE = 2;
 
-async function savePagePng(img, i){
-  const btn = img.parentElement.querySelector('.save-png');
-  const restore = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+// One page, corrected ink plus your annotations, on an opaque canvas.
+async function pageCanvas(note, i, mode){
+  const objects = note.layout?.pages?.[i]?.page?.objects || [];
+  const page = thickenInk(note.session.render_svg(i, mode), objects);
+  const svg = withAnnotations(page, pageInk(note, i), pageTone(page));
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try{
-    if(!img.src) renderPageInto(img);          // lazy page not yet rendered
-    if(!img.src) throw new Error('page has not been rendered');
+    const img = new Image();
+    img.src = url;
     await img.decode();
-
     const w = (img.naturalWidth || 1600) * PNG_SCALE;
     const h = (img.naturalHeight || 2262) * PNG_SCALE;
     const cv = document.createElement('canvas');
@@ -1379,14 +1635,26 @@ async function savePagePng(img, i){
     const ctx = cv.getContext('2d');
     // The SVG's own background rect may not cover the full canvas, and a PNG
     // with a transparent background looks broken in most viewers.
-    ctx.fillStyle = colorMode() === 'dark' ? '#161616' : '#ffffff';
+    ctx.fillStyle = mode === 'dark' ? '#161616' : '#ffffff';
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
+    return cv;
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
 
+async function savePagePng(btn, i){
+  const note = current;
+  if(!note?.session) return;
+  const restore = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try{
+    const cv = await pageCanvas(note, i, colorMode());
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     if(!blob) throw new Error('canvas produced no image');
-
-    const base = (current?.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
+    const base = (note.name || 'note').replace(/\.(sdocx|sdoc|zip)$/i, '');
     downloadBlob(blob, `${base} — page ${i + 1}.png`);
   }catch(err){
     console.error('[png] save failed', err);
@@ -1418,27 +1686,10 @@ const PDF_PAGE_WIDTH_PT = 595.28;
 const PDF_JPEG_QUALITY = 0.9;
 
 async function pageJpeg(note, i){
-  const objects = note.layout?.pages?.[i]?.page?.objects || [];
-  const svg = thickenInk(note.session.render_svg(i, 'light'), objects);
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-  try{
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    const w = (img.naturalWidth || 1600) * PNG_SCALE;
-    const h = (img.naturalHeight || 2262) * PNG_SCALE;
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
-    const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', PDF_JPEG_QUALITY));
-    if(!blob) throw new Error('canvas produced no image');
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), w, h };
-  }finally{
-    URL.revokeObjectURL(url);
-  }
+  const cv = await pageCanvas(note, i, 'light');
+  const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', PDF_JPEG_QUALITY));
+  if(!blob) throw new Error('canvas produced no image');
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), w: cv.width, h: cv.height };
 }
 
 // Minimal PDF 1.4: per page one page object, one content stream, one JPEG.
@@ -1571,7 +1822,8 @@ async function xoppPage(note, i){
   const k = XOPP_PAGE_WIDTH_PT / width;
   const svg = note.session.render_svg(i, 'light');
   const bg = svg.match(/<rect fill="#([0-9a-f]{6})"/i)?.[1] || 'ffffff';
-  const strokes = (page.objects || []).map(o => strokeToXopp(o.content?.Stroke, k)).filter(Boolean);
+  const strokes = (page.objects || []).map(o => strokeToXopp(o.content?.Stroke, k)).filter(Boolean)
+    .concat(pageInk(note, i).map(a => annotationToXopp(a, k)));
   return { w: width * k, h: height * k, background: `#${bg.toLowerCase()}ff`, images: await xoppPageImages(svg, k), strokes };
 }
 
@@ -1787,6 +2039,15 @@ $('zoomOut').onclick = () => setZoom(Math.max(0.4, zoom - 0.15));
 $('zoomReset').onclick = () => setZoom(1);
 $('savePdf').onclick = savePdf;
 $('saveXopp').onclick = saveXopp;
+$('annotateBtn').onclick = () => setAnnotating(!annotating);
+$('doneInk').onclick = () => setAnnotating(false);
+$('undoInk').onclick = undoInk;
+$('toolSeg').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setTool(b.dataset.tool); });
+$('view').addEventListener('pointerdown', onInkDown);
+$('view').addEventListener('pointermove', onInkMove);
+$('view').addEventListener('pointerup', onInkUp);
+$('view').addEventListener('pointercancel', onInkUp);
+renderSwatches();
 
 /* ---------------------------------------------------------------
    Sidebar drawer (narrow screens)
@@ -1841,8 +2102,16 @@ $('aboutBtn').onclick = openAbout;
 $('aboutClose').onclick = closeAbout;
 aboutModal.addEventListener('click', e => { if(e.target === aboutModal) closeAbout(); });
 window.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+  const inking = annotating && activeTab === 'pages' && current && !typing;
+  if(inking && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z'){ e.preventDefault(); undoInk(); return; }
+  if(inking && !e.metaKey && !e.ctrlKey && !e.altKey){
+    const t = { p: 'pen', h: 'highlighter', e: 'eraser' }[e.key.toLowerCase()];
+    if(t){ setTool(t); return; }
+  }
   if(e.key !== 'Escape') return;
   if(openMenuEl){ closeMenu(); return; }
+  if(annotating && aboutModal.classList.contains('hidden')){ setAnnotating(false); return; }
   closeAbout();
   setSidebar(false);
 });

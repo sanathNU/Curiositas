@@ -36,6 +36,15 @@ fixture at `test/Testing doc.sdocx`, which Vite bundles into the build through a
 | **Structure** | The internal Zip entry tree; click a `.note`/`.dat` to inspect text or hex |
 | **Raw** | The parsed document object, engine diagnostics, and the Zip manifest as JSON |
 
+### Writing on a note
+
+**Annotate** (above the pages) adds a pen, a highlighter, a stroke eraser and
+undo. Pen width follows pressure with the same model as Samsung's InkPen, so new
+writing sits at the same weight as the old. Annotations are stored per note in
+IndexedDB beside the library entry; the `.sdocx` is never modified, and the
+note's own strokes can't be erased. Every export below includes them. The
+model lives in `src/annotate.js`.
+
 ### Getting it out
 
 - **Download PDF**: every page in one PDF, light mode, A4-wide pages.
@@ -48,8 +57,8 @@ fixture at `test/Testing doc.sdocx`, which Vite bundles into the build through a
   (1600×2262 → 3200×4524) on an opaque background, so they stay sharp when
   printed or zoomed and don't come out transparent.
 
-The `.xopp` writer lives in `src/xopp.js`; `npm test` checks it against the
-sample fixture.
+The `.xopp` writer lives in `src/xopp.js`. `npm test` checks it against the
+sample fixture, and checks the annotation model.
 
 Works on phones too — the sidebar becomes a drawer and the save button is
 always visible where there's no hover.
