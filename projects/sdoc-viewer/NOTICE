@@ -21,6 +21,15 @@ Other dependencies
   vite             MIT
   vite-plugin-wasm MIT
 
+Sample note and test corpus
+---------------------------
+
+  samples/04-marker4-highlighter.sdocx is copied unmodified from the
+  SDOCX Compatibility Corpus (https://huggingface.co/datasets/twangodev/sdocx-compatibility),
+  (c) SDOCX Compatibility Corpus contributors, licensed CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/). `npm run corpus` downloads
+  the rest of the corpus for testing; it is not committed.
+
 Trademarks
 ----------
 

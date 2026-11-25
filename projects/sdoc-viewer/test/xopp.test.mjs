@@ -1,33 +1,38 @@
-// Xournal++ export against the sample fixture: `npm test`.
+// Xournal++ export over the SDOCX Compatibility Corpus: `npm run corpus && npm test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { fileURLToPath } from 'node:url';
-import { initSync, DocumentSession } from '@twango/sdocx';
 import { XOPP_PAGE_WIDTH_PT, strokeToXopp, xoppXml, xoppColor, gzipText } from '../src/xopp.js';
+import { NOTES, missing, load } from './corpus.mjs';
 
-const here = p => fileURLToPath(new URL(p, import.meta.url));
-initSync({ module: readFileSync(here('../node_modules/@twango/sdocx/sdocx_bg.wasm')) });
-const session = new DocumentSession(new Uint8Array(readFileSync(here('./Testing doc.sdocx'))));
-const pages = session.inspection().layout.pages.map(p => p.page);
+const allPages = () => NOTES.flatMap(id => load(id).pages);
 
 function samplePages(){
-  return pages.map(page => {
+  return allPages().map(page => {
     const k = XOPP_PAGE_WIDTH_PT / page.width;
     const strokes = page.objects.map(o => strokeToXopp(o.content?.Stroke, k)).filter(Boolean);
     return { w: page.width * k, h: page.height * k, background: '#ffffffff', images: [], strokes };
   });
 }
 
-test('every stroke on every page is exported', () => {
+test('every stroke on every page is exported', { skip: missing }, () => {
   const xml = xoppXml(samplePages());
+  const pages = allPages();
   const expected = pages.reduce((n, p) => n + p.objects.filter(o => o.content?.Stroke).length, 0);
+  assert.ok(expected > 0);
   assert.equal((xml.match(/<stroke /g) || []).length, expected);
   assert.equal((xml.match(/<page /g) || []).length, pages.length);
 });
 
-test('pressure widths are nominal plus one per segment', () => {
+test('Marker4 strokes become highlighters', { skip: missing }, () => {
+  const k = XOPP_PAGE_WIDTH_PT / load('04-marker4-highlighter').pages[0].width;
+  const tools = load('04-marker4-highlighter').pages[0].objects
+    .map(o => strokeToXopp(o.content?.Stroke, k)).filter(Boolean).map(s => s.tool);
+  assert.equal(tools.filter(t => t === 'highlighter').length, 12);
+  assert.equal(tools.filter(t => t === 'pen').length, 29);
+});
+
+test('pressure widths are nominal plus one per segment', { skip: missing }, () => {
   for(const page of samplePages()){
     for(const s of page.strokes){
       assert.ok(s.points.length >= 2, 'Xournal++ drops strokes under two points');
@@ -42,7 +47,7 @@ test('pressure widths are nominal plus one per segment', () => {
   }
 });
 
-test('pages are A4-wide and strokes stay on the page', () => {
+test('pages are A4-wide and strokes stay on the page', { skip: missing }, () => {
   for(const page of samplePages()){
     assert.equal(page.w, XOPP_PAGE_WIDTH_PT);
     for(const s of page.strokes) for(const [x, y] of s.points){
@@ -56,7 +61,7 @@ test('colors are #rrggbbaa', () => {
   assert.equal(xoppColor({ r: 217, g: 206, b: 0 }, 0x7f), '#d9ce007f');
 });
 
-test('gzip round-trips', async () => {
+test('gzip round-trips', { skip: missing }, async () => {
   const xml = xoppXml(samplePages());
   const gz = new Uint8Array(await (await gzipText(xml)).arrayBuffer());
   assert.equal(gunzipSync(gz).toString('utf8'), xml);

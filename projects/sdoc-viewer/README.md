@@ -23,9 +23,28 @@ npm install
 npm run dev        # http://localhost:5173, opens automatically
 ```
 
-Drop a `.sdocx` onto the page, or hit **Try a sample note** — it loads the
-fixture at `test/Testing doc.sdocx`, which Vite bundles into the build through a
-`?url` import, so the live site has it too.
+Drop a `.sdocx` onto the page, or hit **Try a sample note**. It loads
+`samples/04-marker4-highlighter.sdocx` (handwriting, highlighters and typed text,
+from the [SDOCX Compatibility Corpus](https://huggingface.co/datasets/twangodev/sdocx-compatibility),
+CC BY 4.0), which Vite bundles into the build through a `?url` import, so the
+live site has it too.
+
+## Testing
+
+```bash
+npm run corpus     # once: downloads the corpus into test/corpus/ (git-ignored)
+npm test
+```
+
+The tests run on the [SDOCX Compatibility Corpus](https://huggingface.co/datasets/twangodev/sdocx-compatibility):
+real Samsung Notes files (typed text and tables, shapes on dotted paper,
+placed and rotated images, Marker4 highlighters, FountainPen), each paired with
+the PDF Samsung Notes exported. `scripts/fetch-corpus.mjs` pins one dataset
+revision and checks every file's SHA-256 against the hashes the dataset
+publishes. The tests check visible page counts against Samsung's PDFs, what
+the dataset documents about each file, that every page renders, that the
+InkPen width fix lines up on every page, and the Xournal++ export. Without the
+corpus those tests are skipped and the unit tests still run.
 
 ## Tabs
 
@@ -52,13 +71,13 @@ model lives in `src/annotate.js`.
   the free handwriting app for Linux, macOS and Windows. Ink comes over as real
   strokes, with the same pressure widths the viewer draws, so you can keep
   writing, erase or recolor on a laptop. Placed images come along as images.
-  The engine doesn't draw typed text yet, so text boxes are left out.
+  Typed text, shapes and tables aren't carried over yet; only ink and placed
+  images are.
 - **Save PNG**: hover a page. Pages are rasterized at 2× their intrinsic size
   (1600×2262 → 3200×4524) on an opaque background, so they stay sharp when
   printed or zoomed and don't come out transparent.
 
-The `.xopp` writer lives in `src/xopp.js`. `npm test` checks it against the
-sample fixture, and checks the annotation model.
+The `.xopp` writer lives in `src/xopp.js`; see **Testing** for how it's checked.
 
 Works on phones too — the sidebar becomes a drawer and the save button is
 always visible where there's no hover.
