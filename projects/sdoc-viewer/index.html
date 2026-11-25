@@ -706,7 +706,7 @@ import JSZip from 'jszip';
 import initSdocx, * as sdocx from '@twango/sdocx';
 import sdocxWasmUrl from '@twango/sdocx/sdocx_bg.wasm?url';
 import sampleUrl from './test/Testing doc.sdocx?url';
-import { isInkPen, inkSegmentWidths } from './src/ink.js';
+import { thickenInk } from './src/ink.js';
 import { XOPP_PAGE_WIDTH_PT, strokeToXopp, xoppXml, gzipText } from './src/xopp.js';
 import { PEN_SIZE, HIGHLIGHTER_SIZE, MIN_POINT_GAP, strokeSvg, annotationSvg, withAnnotations,
          hitsStroke, annotationToXopp } from './src/annotate.js';
@@ -1364,42 +1364,8 @@ const pageObserver = new IntersectionObserver(entries => {
   }
 }, { rootMargin: '400px 0px' });
 
-/* Engine draws InkPen ~4–5× thinner than Samsung Notes; src/ink.js holds the
-   fitted width model, shared with the exporters. */
-const LINE_RE = /<line\b(?=[^>]*\bx1="([-\d.]+)")(?=[^>]*\by1="([-\d.]+)")[^>]*?stroke-width="([\d.]+)"/g;
-
-// Strokes drawn as one <line> per segment start at their first point; others
-// (e.g. Marker4, a filled <path>) have no lines and are skipped.
-function inkLineWidths(svg, objects){
-  const starts = [...svg.matchAll(LINE_RE)].map(m => [+m[1], +m[2]]);
-  const widths = new Array(starts.length).fill(null);
-  let li = 0;
-  for(const o of objects){
-    const st = o.content?.Stroke;
-    if(!st || li >= starts.length) continue;
-    const p0 = st.points[0];
-    if(Math.abs(starts[li][0] - p0.x) > 0.011 || Math.abs(starts[li][1] - p0.y) > 0.011) continue;
-    const n = Math.max(st.points.length - 1, 1);
-    if(isInkPen(st.rendering?.pen_name)){
-      inkSegmentWidths(st, +st.rendering.style.pen_size).forEach((w, i) => { widths[li + i] = w; });
-    }
-    li += n;
-  }
-  return li === starts.length ? widths : null;
-}
-
-function thickenInk(svg, objects){
-  const widths = inkLineWidths(svg, objects);
-  if(!widths){
-    console.warn('[ink] strokes and engine lines did not line up; keeping engine widths');
-    return svg;
-  }
-  let k = 0;
-  return svg.replace(LINE_RE, (m, _x, _y, w) => {
-    const nw = widths[k++];
-    return nw == null ? m : m.slice(0, m.length - w.length - 1) + nw.toFixed(2) + '"';
-  });
-}
+/* Engine draws InkPen ~4–5× thinner than Samsung Notes; src/ink.js matches
+   each InkPen stroke to its <line>s and rewrites their widths. */
 
 function renderPageInto(img){
   const note = img._note;
